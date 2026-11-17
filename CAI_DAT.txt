@@ -1,0 +1,27 @@
+BOT HOAN THIEN — HUONG DAN CHAY
+================================
+
+1) Giai nen zip vao thu muc moi (vd Desktop\binance_future_bot)
+
+2) Tao moi truong Python
+   python -m venv venv
+   .\venv\Scripts\activate
+   pip install -r requirements.txt
+
+3) Cau hinh
+   - Copy .env.example thanh .env
+   - Dien BINANCE_API_KEY / BINANCE_API_SECRET
+   - config/settings.yaml: mode: testnet (hoac live)
+   - KHONG commit / share file .env
+
+4) Chay
+   python main.py
+
+5) Log can thay
+   - "Top symbols by 24h volatility"  → top N bien dong
+   - Dynamic risk / RiskGate / TP LIMIT + SL STOP_MARKET
+
+Da gop: volatility topN, reduceOnly close, dynamic risk, -4164/-4005,
+max-hold snapshot, TF style, killzone/MTF, structure TP, ATR/RR, EMARSIMACDDay.
+
+Giu nguyen .env neu nang cap tu ban cu.

@@ -1,0 +1,42 @@
+
+# --- signal refine: consensus + MTF + killzone ---
+signal_refine:
+  consensus_enabled: true
+  min_strategy_agree: 2
+  consensus_same_style: false
+  bias_trigger_enabled: false
+  htf_bias_enabled: true
+  htf_timeframe: "1h"
+  htf_ema_fast: 21
+  htf_ema_slow: 50
+  mtf_enabled: true
+  mtf_timeframes:
+    - "1h"
+    - "4h"
+  mtf_require_all_align: false
+  mtf_min_align: 1
+  killzone_enabled: false
+  killzone_mode: filter
+  killzone_inside_conf_boost: 0.05
+  killzone_outside_conf_mult: 0.7
+  killzones:
+    asia:
+      start: "00:00"
+      end: "09:00"
+      enabled: false
+    london:
+      start: "07:00"
+      end: "10:00"
+      enabled: true
+    ny_am:
+      start: "12:00"
+      end: "15:00"
+      enabled: true
+    ny_pm:
+      start: "15:00"
+      end: "18:00"
+      enabled: false
+    london_close:
+      start: "15:00"
+      end: "17:00"
+      enabled: false

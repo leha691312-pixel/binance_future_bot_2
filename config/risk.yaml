@@ -1,0 +1,106 @@
+# Style: TF ưu tiên 15m=scalp, 1h/2h/4h=day, 6h+=swing
+# ====================== RISK GATE ======================
+max_position_pct: 0.05
+max_total_exposure_pct: 0.30
+# Tổng tối đa 10 vị thế — không chia quota scalp/day/swing
+max_open_positions: 10
+min_risk_reward: 1.2
+min_risk_reward_structure: 1.1
+max_daily_loss_pct: 0.03
+max_drawdown_pct: 0.12
+cooldown_seconds: 45
+
+default_leverage: 5
+max_leverage: 10
+
+risk_per_trade_pct: 0.01
+atr_multiplier_sl: 1.8
+
+kill_on_consecutive_losses: 6
+kill_on_api_error_rate: 0.15
+kill_on_high_volatility_atr: 4.0
+
+duplicate_window_seconds: 300
+
+# Invalidation: CHỈ TIMEOUT (max hold theo style)
+# Đã gỡ BOS reverse / ADVERSE_MOVE / LOW_REMAINING_RR
+max_hold_minutes: 720
+
+hold_profiles:
+  scalp:
+    max_hold_minutes: 90
+  day:
+    max_hold_minutes: 720
+  swing:
+    max_hold_minutes: 4320
+
+# Map strategy → style (chỉ để chọn max_hold, không giới hạn số lệnh/style)
+strategy_trade_style:
+  ORB: scalp
+  LiquiditySweep: scalp
+  MARibbon: scalp
+  StochBB: scalp
+  PivotScalp: scalp
+  EMARSIScalp: scalp
+  OrderBlock: day
+  SupplyDemand: day
+  FVG: day
+  BOS_CHOCH: day
+  TrendMA: day
+  MomentumRSI: day
+  PullbackEMA: day
+  RangeBounce: day
+  OI_Funding: swing
+  SwingMACross: swing
+  SwingRSI: swing
+  FibPullback: swing
+  BBSqueeze: swing
+  PremiumDiscount: day
+
+force_paper_on_startup: true
+require_manual_confirm_live: true
+
+
+# ===== Dynamic risk (execution) =====
+dynamic_risk:
+  enabled: true
+  dd_steps:
+    - {dd_pct: 0.05, mult: 0.7}
+    - {dd_pct: 0.10, mult: 0.4}
+    - {dd_pct: 0.20, mult: 0.0}
+  loss_streak_mult:
+    2: 0.75
+    3: 0.5
+    5: 0.25
+  atr_vol_scale: true
+  atr_ref_pct: 0.01
+  confidence_scale: true
+  exposure_scale: true
+  style_mult: {scalp: 0.8, day: 1.0, swing: 1.0}
+  min_risk_pct: 0.003
+  max_risk_pct: 0.02
+  min_notional_usdt: 5
+
+
+# ===== ATR profiles =====
+atr_period: 14
+atr_profiles:
+  scalp:
+    atr_period: 14
+    atr_sl_mult: 1.35
+    sl_buffer_atr: 0.35
+    min_stop_atr: 0.8
+    max_stop_atr: 2.2
+  day:
+    atr_period: 14
+    atr_sl_mult: 1.75
+    sl_buffer_atr: 0.45
+    min_stop_atr: 1.0
+    max_stop_atr: 2.8
+  swing:
+    atr_period: 14
+    atr_sl_mult: 2.3
+    sl_buffer_atr: 0.55
+    min_stop_atr: 1.3
+    max_stop_atr: 3.5
+
