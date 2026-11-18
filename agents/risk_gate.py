@@ -256,15 +256,15 @@ class RiskGate:
 
     def resolve_trade_style(self, strategy: str = "", timeframe: str = "") -> str:
         """Style theo TF ưu tiên:
-        15m→scalp | 30m/1h/2h/4h→day | 6h+→swing
+        15m→scalp | 30m/1h/2h→day | 4h+→swing
         strategy_trade_style chỉ fallback khi thiếu TF.
         """
         tf = (timeframe or "").lower().strip()
         if tf in ("1m", "3m", "5m", "15m"):
             return "scalp"
-        if tf in ("30m", "1h", "2h", "4h"):
+        if tf in ("30m", "1h", "2h"):
             return "day"
-        if tf in ("6h", "8h", "12h", "1d", "1w", "3d"):
+        if tf in ("4h", "6h", "8h", "12h", "1d", "1w", "3d"):
             return "swing"
 
         mapping = self.cfg.get("strategy_trade_style") or {}
