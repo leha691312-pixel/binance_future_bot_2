@@ -75,7 +75,7 @@ def main():
 
     if mode == "live":
     # Không hỏi xác nhận – chạy thẳng live (tiền thật)
-    logger.warning("LIVE MODE – Real money at risk. Auto-start (no confirm).")
+       logger.warning("LIVE MODE – Real money at risk. Auto-start (no confirm).")
 
     exchange = ExchangeWrapper(mode=mode, config=settings)
     risk_gate = RiskGate(risk_config=risk_cfg, equity=exchange.get_balance())
