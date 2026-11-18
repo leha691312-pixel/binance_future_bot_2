@@ -74,11 +74,9 @@ def main():
     logger.info(f"=== Starting Bot in mode: {mode.upper()} ===")
 
     if mode == "live":
-        logger.warning("LIVE MODE – Real money at risk.")
-        confirm = input("Type 'YES I UNDERSTAND' to continue: ")
-        if confirm != "YES I UNDERSTAND":
-            logger.info("Aborted.")
-            return
+        if mode == "live":
+    # Không hỏi xác nhận – chạy thẳng live (tiền thật)
+    logger.warning("LIVE MODE – Real money at risk. Auto-start (no confirm).")
 
     exchange = ExchangeWrapper(mode=mode, config=settings)
     risk_gate = RiskGate(risk_config=risk_cfg, equity=exchange.get_balance())
