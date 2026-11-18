@@ -74,7 +74,6 @@ def main():
     logger.info(f"=== Starting Bot in mode: {mode.upper()} ===")
 
     if mode == "live":
-        if mode == "live":
     # Không hỏi xác nhận – chạy thẳng live (tiền thật)
     logger.warning("LIVE MODE – Real money at risk. Auto-start (no confirm).")
 
