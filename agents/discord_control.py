@@ -913,7 +913,7 @@ if HAS_DISCORD:
                 min_values=1,
                 max_values=1,
                 options=options,
-                row=3,
+                row=0,  # Select chiếm cả hàng — không chung hàng với Button
             )
 
         async def callback(self, interaction: discord.Interaction):
@@ -967,31 +967,31 @@ if HAS_DISCORD:
                 view=ControlPanelView(),
             )
 
-        @discord.ui.button(label="Làm mới", style=discord.ButtonStyle.primary, emoji="🔄", row=0)
+        @discord.ui.button(label="Làm mới", style=discord.ButtonStyle.primary, emoji="🔄", row=1)
         async def btn_refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             await self._refresh_panel(interaction)
 
-        @discord.ui.button(label="Trạng thái", style=discord.ButtonStyle.secondary, emoji="📊", row=0)
+        @discord.ui.button(label="Trạng thái", style=discord.ButtonStyle.secondary, emoji="📊", row=1)
         async def btn_status(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             await interaction.response.send_message(embed=_status_embed(), ephemeral=True)
 
-        @discord.ui.button(label="Vị thế", style=discord.ButtonStyle.secondary, emoji="📈", row=0)
+        @discord.ui.button(label="Vị thế", style=discord.ButtonStyle.secondary, emoji="📈", row=1)
         async def btn_positions(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             await interaction.response.send_message(embed=_positions_embed(), ephemeral=True)
 
-        @discord.ui.button(label="Thông số", style=discord.ButtonStyle.secondary, emoji="⚙️", row=0)
+        @discord.ui.button(label="Thông số", style=discord.ButtonStyle.secondary, emoji="⚙️", row=1)
         async def btn_params(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             await interaction.response.send_message(embed=_params_embed(), ephemeral=True)
 
-        @discord.ui.button(label="Tạm dừng", style=discord.ButtonStyle.secondary, emoji="⏸", row=1)
+        @discord.ui.button(label="Tạm dừng", style=discord.ButtonStyle.secondary, emoji="⏸", row=2)
         async def btn_pause(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1000,7 +1000,7 @@ if HAS_DISCORD:
                 embed=_panel_embed(), view=ControlPanelView()
             )
 
-        @discord.ui.button(label="Tiếp tục", style=discord.ButtonStyle.success, emoji="▶️", row=1)
+        @discord.ui.button(label="Tiếp tục", style=discord.ButtonStyle.success, emoji="▶️", row=2)
         async def btn_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1009,7 +1009,7 @@ if HAS_DISCORD:
                 embed=_panel_embed(), view=ControlPanelView()
             )
 
-        @discord.ui.button(label="Kill", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
+        @discord.ui.button(label="Kill", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
         async def btn_kill(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1025,7 +1025,7 @@ if HAS_DISCORD:
                 embed=emb, view=ConfirmKillView(), ephemeral=True
             )
 
-        @discord.ui.button(label="Gỡ Kill", style=discord.ButtonStyle.success, emoji="✅", row=1)
+        @discord.ui.button(label="Gỡ Kill", style=discord.ButtonStyle.success, emoji="✅", row=2)
         async def btn_unkill(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1035,21 +1035,21 @@ if HAS_DISCORD:
                 embed=_panel_embed(), view=ControlPanelView()
             )
 
-        @discord.ui.button(label="Lev 3x", style=discord.ButtonStyle.secondary, row=2)
+        @discord.ui.button(label="Lev 3x", style=discord.ButtonStyle.secondary, row=3)
         async def btn_lev3(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             msg = _apply_param("default_leverage", "3")
             await interaction.response.send_message(msg, ephemeral=True)
 
-        @discord.ui.button(label="Lev 5x", style=discord.ButtonStyle.secondary, row=2)
+        @discord.ui.button(label="Lev 5x", style=discord.ButtonStyle.secondary, row=3)
         async def btn_lev5(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             msg = _apply_param("default_leverage", "5")
             await interaction.response.send_message(msg, ephemeral=True)
 
-        @discord.ui.button(label="Lev 10x", style=discord.ButtonStyle.secondary, row=2)
+        @discord.ui.button(label="Lev 10x", style=discord.ButtonStyle.secondary, row=3)
         async def btn_lev10(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
