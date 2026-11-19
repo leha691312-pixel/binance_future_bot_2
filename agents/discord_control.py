@@ -21,6 +21,14 @@ import yaml
 from loguru import logger
 
 try:
+    from agents import discord_ml as _discord_ml
+except Exception:
+    try:
+        import discord_ml as _discord_ml  # type: ignore
+    except Exception:
+        _discord_ml = None
+
+try:
     import discord
     from discord.ext import commands
 
@@ -32,45 +40,87 @@ except ImportError:
 
 
 ALLOWED_RISK_KEYS = {
-    "default_leverage": (int, 1, 20),
-    "max_leverage": (int, 1, 50),
-    "risk_per_trade_pct": (float, 0.001, 0.05),
-    "max_position_pct": (float, 0.01, 0.2),
-    "max_total_exposure_pct": (float, 0.05, 1.0),
-    "max_open_positions": (int, 1, 20),
-    "min_risk_reward": (float, 1.0, 5.0),
-    "max_daily_loss_pct": (float, 0.005, 0.2),
-    "duplicate_window_seconds": (int, 30, 3600),
-    "kill_on_consecutive_losses": (int, 2, 20),
-    "cooldown_seconds": (int, 0, 600),
+    "default_leverage": (int, 1, 125),
+    "max_leverage": (int, 1, 125),
+    "risk_per_trade_pct": (float, 0.0005, 0.1),
+    "max_position_pct": (float, 0.01, 1.0),
+    "max_total_exposure_pct": (float, 0.05, 20.0),
+    "max_open_positions": (int, 1, 50),
+    "min_risk_reward": (float, 0.5, 10.0),
+    "min_risk_reward_structure": (float, 0.5, 10.0),
+    "max_daily_loss_pct": (float, 0.005, 0.5),
+    "max_drawdown_pct": (float, 0.01, 0.5),
+    "duplicate_window_seconds": (int, 0, 7200),
+    "kill_on_consecutive_losses": (int, 1, 50),
+    "cooldown_seconds": (int, 0, 3600),
+    "atr_multiplier_sl": (float, 0.5, 5.0),
+    "kill_on_api_error_rate": (float, 0.05, 1.0),
+    "kill_on_high_volatility_atr": (float, 1.0, 20.0),
+    "min_notional_usdt": (float, 1.0, 50.0),
+    "max_hold_minutes": (int, 5, 20000),
 }
 
 ALLOWED_SETTINGS_KEYS = {
-    "top_n": (int, 5, 100),
-    "scan_interval_seconds": (int, 30, 600),
+    "top_n": (int, 5, 500),
+    "scan_interval_seconds": (int, 15, 3600),
+    "min_quote_volume_top": (float, 0, 50_000_000),
+    "scan_workers": (int, 1, 32),
+    "ml_prob_threshold": (float, 0.3, 0.95),
+    "ml_min_samples": (int, 20, 500),
+    "ml_min_auc_deploy": (float, 0.45, 0.95),
+    "ml_retrain_every_new": (int, 5, 200),
+    "ml_retrain_hours": (float, 1, 168),
 }
 
-# String settings (không dùng min/max số)
+# String / bool settings
 ALLOWED_SETTINGS_STR = {
     "margin_mode": ("isolated", "cross"),
+    "mode": ("paper", "testnet", "live"),
+    "ml_collect_only": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "ml_filter_enabled": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "ml_per_style": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "scan_parallel": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "killzone_enabled": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "killzone_mode": ("filter", "tag", "boost"),
 }
 
 # Nhãn tiếng Việt cho select / modal
 PARAM_LABELS = {
-    "default_leverage": ("Đòn bẩy mặc định", "1–20"),
-    "max_leverage": ("Đòn bẩy tối đa", "1–50"),
-    "risk_per_trade_pct": ("Risk mỗi lệnh", "0.001–0.05 (vd 0.01 = 1%)"),
-    "max_position_pct": ("% vốn 1 vị thế", "0.01–0.2"),
-    "max_total_exposure_pct": ("Tổng exposure", "0.05–1.0"),
-    "max_open_positions": ("Số vị thế tối đa", "1–20"),
-    "min_risk_reward": ("RR tối thiểu", "1.0–5.0"),
-    "max_daily_loss_pct": ("Lỗ ngày tối đa", "0.005–0.2"),
-    "duplicate_window_seconds": ("Chống lệnh trùng (giây)", "30–3600"),
-    "kill_on_consecutive_losses": ("Kill sau N lệnh thua", "2–20"),
-    "cooldown_seconds": ("Cooldown sau lệnh (giây)", "0–600"),
-    "top_n": ("Số symbol quét", "5–100"),
-    "scan_interval_seconds": ("Chu kỳ scan (giây)", "30–600"),
+    "default_leverage": ("Đòn bẩy mặc định", "1–125"),
+    "max_leverage": ("Đòn bẩy tối đa", "1–125"),
+    "risk_per_trade_pct": ("Risk mỗi lệnh", "vd 0.01 = 1%"),
+    "max_position_pct": ("% vốn 1 vị thế", "0.01–1.0"),
+    "max_total_exposure_pct": ("Tổng exposure", "0.05–20 (1=100% equity)"),
+    "max_open_positions": ("Số vị thế tối đa", "1–50"),
+    "min_risk_reward": ("RR tối thiểu", "0.5–10"),
+    "min_risk_reward_structure": ("RR tối thiểu (structure TP)", "0.5–10"),
+    "max_daily_loss_pct": ("Lỗ ngày tối đa", "0.005–0.5"),
+    "max_drawdown_pct": ("Max drawdown", "0.01–0.5"),
+    "duplicate_window_seconds": ("Chống lệnh trùng (giây)", "0–7200"),
+    "kill_on_consecutive_losses": ("Kill sau N lệnh thua", "1–50"),
+    "cooldown_seconds": ("Cooldown sau lệnh (giây)", "0–3600"),
+    "atr_multiplier_sl": ("ATR SL multiplier", "0.5–5"),
+    "kill_on_api_error_rate": ("Kill API error rate", "0.05–1.0"),
+    "kill_on_high_volatility_atr": ("Kill high ATR%", "1–20"),
+    "min_notional_usdt": ("Min notional USDT", "1–50"),
+    "max_hold_minutes": ("Max hold (fallback phút)", "5–20000"),
+    "top_n": ("Số symbol quét (top N vol)", "5–500"),
+    "scan_interval_seconds": ("Chu kỳ scan (giây)", "15–3600"),
+    "min_quote_volume_top": ("Min volume lọc top N", "0–50M"),
+    "scan_workers": ("Số worker scan song song", "1–32"),
+    "ml_prob_threshold": ("ML P(WIN) threshold", "0.3–0.95"),
+    "ml_min_samples": ("ML min samples train", "20–500"),
+    "ml_min_auc_deploy": ("ML min AUC deploy", "0.45–0.95"),
+    "ml_retrain_every_new": ("ML retrain mỗi N sample", "5–200"),
+    "ml_retrain_hours": ("ML retrain hours", "1–168"),
     "margin_mode": ("Margin mode", "isolated | cross"),
+    "mode": ("Bot mode", "paper | testnet | live"),
+    "ml_collect_only": ("ML chỉ gom data", "true/false"),
+    "ml_filter_enabled": ("ML filter bật", "true/false"),
+    "ml_per_style": ("ML theo style", "true/false"),
+    "scan_parallel": ("Scan song song", "true/false"),
+    "killzone_enabled": ("Killzone bật", "true/false"),
+    "killzone_mode": ("Killzone mode", "filter | tag | boost"),
 }
 
 COLOR_OK = 0x2ECC71
@@ -93,6 +143,7 @@ class BotControlState:
         self.request_restart: bool = False
         self.last_cycle_info: str = ""
         self.scanner = None
+        self.ml_agent = None
 
     def set_refs(self, risk_gate, executor, exchange, settings, risk_cfg, mode: str):
         self.risk_gate = risk_gate
@@ -155,6 +206,13 @@ def _save_settings_yaml(settings: dict):
             )
     except Exception as e:
         logger.warning(f"Failed to save settings.yaml: {e}")
+
+
+if _discord_ml is not None:
+    try:
+        _discord_ml.bind(lambda: control_state, _save_settings_yaml)
+    except Exception as e:
+        logger.warning(f"discord_ml bind failed: {e}")
 
 
 def _normalize_symbol(sym: str, quote: str = "USDT") -> str:
@@ -230,41 +288,73 @@ def _repo_root() -> Path:
 
 
 def _git_pull() -> Tuple[bool, str]:
-    """git pull --ff-only trong thư mục bot. Trả về (ok, log)."""
+    """Pull code an toàn: stash config → pull --ff-only → restore config.
+
+    Giữ nguyên config/settings.yaml và config/risk.yaml local để tránh conflict.
+    """
     root = _repo_root()
     if not (root / ".git").exists():
         return False, f"Không thấy .git tại `{root}` — bot chưa clone bằng git?"
-    try:
-        r = subprocess.run(
-            ["git", "pull", "--ff-only", "origin", "main"],
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            timeout=120,
-            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
-        )
-        out = ((r.stdout or "") + "\n" + (r.stderr or "")).strip()
-        if r.returncode != 0:
-            # fallback: git pull không chỉ định remote/branch
-            r2 = subprocess.run(
-                ["git", "pull", "--ff-only"],
+
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    cfg_files = ["config/settings.yaml", "config/risk.yaml"]
+    logs: list = []
+
+    def run(cmd: list, timeout: int = 120) -> Tuple[int, str]:
+        try:
+            p = subprocess.run(
+                cmd,
                 cwd=str(root),
                 capture_output=True,
                 text=True,
-                timeout=120,
-                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                timeout=timeout,
+                env=env,
+                encoding="utf-8",
+                errors="replace",
             )
-            out2 = ((r2.stdout or "") + "\n" + (r2.stderr or "")).strip()
-            if r2.returncode == 0:
-                return True, out2[:1500] or "Already up to date."
-            return False, (out2 or out or f"exit {r2.returncode}")[:1500]
-        return True, (out or "Already up to date.")[:1500]
-    except FileNotFoundError:
-        return False, "Không tìm thấy lệnh `git` trên máy bot."
-    except subprocess.TimeoutExpired:
-        return False, "git pull timeout (>120s)."
-    except Exception as e:
-        return False, str(e)[:500]
+            out = ((p.stdout or "") + "\n" + (p.stderr or "")).strip()
+            return p.returncode, out
+        except FileNotFoundError:
+            return 127, "Không tìm thấy lệnh `git` trên máy bot."
+        except subprocess.TimeoutExpired:
+            return 124, "git timeout."
+        except Exception as e:
+            return 1, str(e)[:500]
+
+    # 1) Stash chỉ 2 file config (nếu có thay đổi)
+    code, out = run(
+        ["git", "stash", "push", "-m", "discord-pull-keep-cfg", "--"] + cfg_files
+    )
+    logs.append(f"[stash] {out or 'ok'}")
+    stashed = code == 0 and "Saved working directory" in (out or "")
+
+    # 2) Pull fast-forward
+    code, out = run(["git", "pull", "--ff-only", "origin", "main"])
+    pull_err = ""
+    if code != 0:
+        code2, out2 = run(["git", "pull", "--ff-only"])
+        logs.append(f"[pull] {out2 or out}")
+        ok = code2 == 0
+        if not ok:
+            pull_err = out2 or out
+        else:
+            out = out2
+    else:
+        logs.append(f"[pull] {out or 'Already up to date.'}")
+        ok = True
+
+    # 3) Restore config local từ stash
+    if stashed:
+        for f in cfg_files:
+            c2, o2 = run(["git", "checkout", "stash@{0}", "--", f])
+            logs.append(f"[restore {f}] {o2 or ('ok' if c2 == 0 else str(c2))}")
+        run(["git", "stash", "drop"])
+        logs.append("[stash drop] done")
+
+    msg = "\n".join(logs)[-1800:]
+    if not ok:
+        return False, (pull_err or msg)[:1800]
+    return True, msg or "Already up to date."
 
 
 
@@ -374,6 +464,11 @@ def _status_embed() -> "discord.Embed":
         value=str(snap["last_cycle"])[:200],
         inline=False,
     )
+    if _discord_ml is not None:
+        try:
+            emb.add_field(name="ML", value=_discord_ml.apply_ml_runtime()[:1020], inline=False)
+        except Exception as e:
+            emb.add_field(name="ML", value=str(e)[:200], inline=False)
     emb.set_footer(text="Binance Futures Bot")
     return emb
 
@@ -550,18 +645,40 @@ def _apply_param(key: str, value: str) -> str:
         if not (lo <= val <= hi):
             return f"❌ `{key}` phải trong [{lo}, {hi}]"
         st.settings[key] = val
+        if key == "ml_prob_threshold" and st.ml_agent is not None:
+            try:
+                st.ml_agent.prob_threshold = float(val)
+            except Exception as e:
+                logger.warning(f"Apply ml_prob_threshold: {e}")
         _save_settings_yaml(st.settings)
         label = PARAM_LABELS.get(key, (key,))[0]
         return f"✅ **{label}** = `{val}`"
 
-    # String settings (vd: margin_mode)
+    # String / bool settings
     if key in ALLOWED_SETTINGS_STR:
         allowed = ALLOWED_SETTINGS_STR[key]
-        val = str(value).strip().lower()
-        if val not in allowed:
+        raw = str(value).strip().lower()
+        if raw not in allowed:
             return f"❌ `{key}` chỉ nhận: {', '.join(allowed)}"
-        st.settings[key] = val
-        # Áp dụng runtime cho exchange (lệnh mới)
+
+        bool_keys = {
+            "ml_collect_only", "ml_filter_enabled", "ml_per_style",
+            "scan_parallel", "killzone_enabled",
+        }
+        if key in bool_keys:
+            val = raw in ("true", "1", "yes", "on")
+        else:
+            val = raw
+
+        if key in ("killzone_enabled", "killzone_mode"):
+            sr = st.settings.setdefault("signal_refine", {})
+            if not isinstance(sr, dict):
+                sr = {}
+                st.settings["signal_refine"] = sr
+            sr[key] = val
+        else:
+            st.settings[key] = val
+
         if st.exchange is not None and key == "margin_mode":
             try:
                 st.exchange.margin_mode = val
@@ -569,6 +686,27 @@ def _apply_param(key: str, value: str) -> str:
                     st.exchange.config["margin_mode"] = val
             except Exception as e:
                 logger.warning(f"Apply margin_mode runtime failed: {e}")
+
+        if st.ml_agent is not None and key in (
+            "ml_collect_only", "ml_filter_enabled", "ml_per_style"
+        ):
+            try:
+                if key == "ml_collect_only":
+                    st.ml_agent.collect_only = bool(val)
+                elif key == "ml_filter_enabled":
+                    st.ml_agent.filter_enabled = bool(val)
+                elif key == "ml_per_style":
+                    if hasattr(st.ml_agent, "per_style"):
+                        st.ml_agent.per_style = bool(val)
+            except Exception as e:
+                logger.warning(f"Apply ML runtime {key}: {e}")
+
+        if key == "ml_prob_threshold" and st.ml_agent is not None:
+            try:
+                st.ml_agent.prob_threshold = float(val)
+            except Exception:
+                pass
+
         _save_settings_yaml(st.settings)
         label = PARAM_LABELS.get(key, (key,))[0]
         note = ""
@@ -577,9 +715,14 @@ def _apply_param(key: str, value: str) -> str:
                 "\n⚠️ Chỉ áp dụng cho **vị thế mới**. "
                 "Vị thế đang mở giữ nguyên margin type trên sàn."
             )
+        if key == "mode":
+            note = "\n⚠️ Đổi mode cần **restart** bot để Exchange nạp lại."
         return f"✅ **{label}** = `{val}`{note}"
 
-    return f"❌ Key `{key}` không được phép."
+    return (
+        f"❌ Key `{key}` không được phép.\n"
+        "Dùng `!params` để xem danh sách, hoặc `!set <key> <value>`."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -932,6 +1075,25 @@ if HAS_DISCORD:
                 )
 
         # ---- Row 4: blacklist + restart ----
+        
+        @discord.ui.button(label="ML ON", style=discord.ButtonStyle.success, emoji="🧠", row=3)
+        async def btn_ml_on(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            if _discord_ml is None:
+                await interaction.response.send_message("discord_ml missing", ephemeral=True)
+                return
+            await interaction.response.send_message(_discord_ml.set_ml_filter(True), ephemeral=True)
+
+        @discord.ui.button(label="ML OFF", style=discord.ButtonStyle.secondary, emoji="🧠", row=3)
+        async def btn_ml_off(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            if _discord_ml is None:
+                await interaction.response.send_message("discord_ml missing", ephemeral=True)
+                return
+            await interaction.response.send_message(_discord_ml.set_ml_filter(False), ephemeral=True)
+
         @discord.ui.button(
             label="Loại symbol", style=discord.ButtonStyle.secondary, emoji="🚫", row=4
         )
@@ -1066,6 +1228,45 @@ def create_bot() -> Optional[Any]:
             color=COLOR_INFO,
         )
         await ctx.send(embed=emb)
+
+
+    @bot.command(name="ml")
+    async def cmd_ml(ctx, action: str = None, sub: str = None):
+        if not _is_authorized(ctx):
+            await ctx.send("No permission.", delete_after=10)
+            return
+        if _discord_ml is None:
+            await ctx.send("Module agents/discord_ml.py missing — git pull.")
+            return
+        act = (action or "status").strip().lower()
+        if act in ("status", "st", "info"):
+            await ctx.send(_discord_ml.status_text())
+            return
+        if act in ("on", "enable", "true", "1"):
+            await ctx.send(_discord_ml.set_ml_filter(True))
+            return
+        if act in ("off", "disable", "false", "0"):
+            await ctx.send(_discord_ml.set_ml_filter(False))
+            return
+        if act == "collect":
+            sub_v = (sub or "").strip().lower()
+            if sub_v in ("on", "true", "1"):
+                await ctx.send(_discord_ml.set_ml_collect(True))
+            elif sub_v in ("off", "false", "0"):
+                await ctx.send(_discord_ml.set_ml_collect(False))
+            else:
+                await ctx.send(f"Use: `{ctx.prefix}ml collect on|off`")
+            return
+        if act in ("threshold", "thr", "prob"):
+            if not sub:
+                await ctx.send(f"Use: `{ctx.prefix}ml threshold 0.50`")
+                return
+            await ctx.send(_discord_ml.set_ml_threshold(sub))
+            return
+        await ctx.send(
+            f"`{ctx.prefix}ml` | `{ctx.prefix}ml on|off` | "
+            f"`{ctx.prefix}ml collect on|off` | `{ctx.prefix}ml threshold 0.5`"
+        )
 
     @bot.command(name="status")
     async def cmd_status(ctx):
