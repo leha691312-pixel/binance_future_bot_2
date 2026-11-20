@@ -1095,7 +1095,7 @@ if HAS_DISCORD:
             await interaction.response.send_message(msg, ephemeral=True)
 
         @discord.ui.button(
-            label="Xóa skip", style=discord.ButtonStyle.secondary, emoji="🧹", row=2
+            label="Xóa skip", style=discord.ButtonStyle.secondary, emoji="🧹", row=1
         )
         async def btn_skip(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
@@ -1114,7 +1114,7 @@ if HAS_DISCORD:
 
         # ---- Row 4: blacklist + restart ----
         
-        @discord.ui.button(label="ML ON", style=discord.ButtonStyle.success, emoji="🧠", row=3)
+        @discord.ui.button(label="ML ON", style=discord.ButtonStyle.success, emoji="🧠", row=2)
         async def btn_ml_on(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1123,7 +1123,7 @@ if HAS_DISCORD:
                 return
             await interaction.response.send_message(_discord_ml.set_ml_filter(True), ephemeral=True)
 
-        @discord.ui.button(label="ML OFF", style=discord.ButtonStyle.secondary, emoji="🧠", row=3)
+        @discord.ui.button(label="ML OFF", style=discord.ButtonStyle.secondary, emoji="🧠", row=2)
         async def btn_ml_off(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
