@@ -1029,6 +1029,43 @@ if HAS_DISCORD:
                 return
             await interaction.response.send_message(embed=_params_embed(), ephemeral=True)
 
+        @discord.ui.button(label="Log", style=discord.ButtonStyle.secondary, emoji="📜", row=0)
+        async def btn_log(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            ok, payload = _read_log_tail(40)
+            if not ok:
+                await interaction.response.send_message(payload, ephemeral=True)
+                return
+            if len(payload) <= 1900:
+                await interaction.response.send_message(payload, ephemeral=True)
+                return
+            if "```" in payload:
+                parts = payload.split("```")
+                header = parts[0].strip()
+                body = parts[1].strip("\n") if len(parts) > 1 else payload
+            else:
+                header = "📜 log"
+                body = payload
+            lines = body.splitlines()
+            chunk, size, chunks = [], 0, []
+            for line in lines:
+                add = len(line) + 1
+                if size + add > 1700 and chunk:
+                    chunks.append("\n".join(chunk))
+                    chunk, size = [line], add
+                else:
+                    chunk.append(line)
+                    size += add
+            if chunk:
+                chunks.append("\n".join(chunk))
+            await interaction.response.send_message(
+                f"{header} · {len(lines)} dòng (nút Log ≈ 40 dòng)", ephemeral=True
+            )
+            for ch in chunks[:4]:
+                await interaction.followup.send(f"```\n{ch}\n```", ephemeral=True)
+
+
         @discord.ui.button(label="Tạm dừng", style=discord.ButtonStyle.secondary, emoji="⏸", row=1)
         async def btn_pause(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
