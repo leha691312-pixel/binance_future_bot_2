@@ -282,6 +282,44 @@ def _format_excluded_msg() -> str:
     return f"🚫 **Blacklist ({len(items)}):**\n{lines}{more}"
 
 
+
+def _log_file_path() -> Path:
+    """Đường dẫn file log: settings.log_file hoặc logs/bot.log."""
+    root = _repo_root()
+    st = control_state.settings or {}
+    rel = st.get("log_file") or "logs/bot.log"
+    p = Path(str(rel))
+    if not p.is_absolute():
+        p = root / p
+    return p
+
+
+def _read_log_tail(n: int = 50) -> Tuple[bool, str]:
+    """Đọc n dòng cuối log. Trả về (ok, text_for_discord)."""
+    n = max(1, min(int(n), 200))
+    path = _log_file_path()
+    if not path.is_file():
+        return False, f"Không thấy file log: `{path}`"
+    try:
+        max_bytes = min(512_000, n * 500)
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - max_bytes), 0)
+            raw = f.read().decode("utf-8", errors="replace")
+        lines = raw.splitlines()
+        if size > max_bytes and lines:
+            lines = lines[1:]
+        tail = lines[-n:] if len(lines) > n else lines
+        if not tail:
+            return True, "(file log trống)"
+        body = chr(10).join(tail)
+        header = f"📜 **{path.name}** — {len(tail)} dòng cuối"
+        return True, header + chr(10) + "```" + chr(10) + body + chr(10) + "```"
+    except Exception as e:
+        return False, f"Đọc log lỗi: `{e}`"
+
+
 def _repo_root() -> Path:
     """Thư mục gốc repo (chứa main.py, .git)."""
     return Path(__file__).resolve().parent.parent
@@ -913,7 +951,7 @@ if HAS_DISCORD:
                 min_values=1,
                 max_values=1,
                 options=options,
-                row=0,  # Select chiếm cả hàng — không chung hàng với Button
+                row=3,
             )
 
         async def callback(self, interaction: discord.Interaction):
@@ -967,31 +1005,31 @@ if HAS_DISCORD:
                 view=ControlPanelView(),
             )
 
-        @discord.ui.button(label="Làm mới", style=discord.ButtonStyle.primary, emoji="🔄", row=1)
+        @discord.ui.button(label="Làm mới", style=discord.ButtonStyle.primary, emoji="🔄", row=0)
         async def btn_refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             await self._refresh_panel(interaction)
 
-        @discord.ui.button(label="Trạng thái", style=discord.ButtonStyle.secondary, emoji="📊", row=1)
+        @discord.ui.button(label="Trạng thái", style=discord.ButtonStyle.secondary, emoji="📊", row=0)
         async def btn_status(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             await interaction.response.send_message(embed=_status_embed(), ephemeral=True)
 
-        @discord.ui.button(label="Vị thế", style=discord.ButtonStyle.secondary, emoji="📈", row=1)
+        @discord.ui.button(label="Vị thế", style=discord.ButtonStyle.secondary, emoji="📈", row=0)
         async def btn_positions(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             await interaction.response.send_message(embed=_positions_embed(), ephemeral=True)
 
-        @discord.ui.button(label="Thông số", style=discord.ButtonStyle.secondary, emoji="⚙️", row=1)
+        @discord.ui.button(label="Thông số", style=discord.ButtonStyle.secondary, emoji="⚙️", row=0)
         async def btn_params(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             await interaction.response.send_message(embed=_params_embed(), ephemeral=True)
 
-        @discord.ui.button(label="Tạm dừng", style=discord.ButtonStyle.secondary, emoji="⏸", row=2)
+        @discord.ui.button(label="Tạm dừng", style=discord.ButtonStyle.secondary, emoji="⏸", row=1)
         async def btn_pause(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1000,7 +1038,7 @@ if HAS_DISCORD:
                 embed=_panel_embed(), view=ControlPanelView()
             )
 
-        @discord.ui.button(label="Tiếp tục", style=discord.ButtonStyle.success, emoji="▶️", row=2)
+        @discord.ui.button(label="Tiếp tục", style=discord.ButtonStyle.success, emoji="▶️", row=1)
         async def btn_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1009,7 +1047,7 @@ if HAS_DISCORD:
                 embed=_panel_embed(), view=ControlPanelView()
             )
 
-        @discord.ui.button(label="Kill", style=discord.ButtonStyle.danger, emoji="🛑", row=2)
+        @discord.ui.button(label="Kill", style=discord.ButtonStyle.danger, emoji="🛑", row=1)
         async def btn_kill(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1025,7 +1063,7 @@ if HAS_DISCORD:
                 embed=emb, view=ConfirmKillView(), ephemeral=True
             )
 
-        @discord.ui.button(label="Gỡ Kill", style=discord.ButtonStyle.success, emoji="✅", row=2)
+        @discord.ui.button(label="Gỡ Kill", style=discord.ButtonStyle.success, emoji="✅", row=1)
         async def btn_unkill(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1035,21 +1073,21 @@ if HAS_DISCORD:
                 embed=_panel_embed(), view=ControlPanelView()
             )
 
-        @discord.ui.button(label="Lev 3x", style=discord.ButtonStyle.secondary, row=3)
+        @discord.ui.button(label="Lev 3x", style=discord.ButtonStyle.secondary, row=2)
         async def btn_lev3(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             msg = _apply_param("default_leverage", "3")
             await interaction.response.send_message(msg, ephemeral=True)
 
-        @discord.ui.button(label="Lev 5x", style=discord.ButtonStyle.secondary, row=3)
+        @discord.ui.button(label="Lev 5x", style=discord.ButtonStyle.secondary, row=2)
         async def btn_lev5(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
             msg = _apply_param("default_leverage", "5")
             await interaction.response.send_message(msg, ephemeral=True)
 
-        @discord.ui.button(label="Lev 10x", style=discord.ButtonStyle.secondary, row=3)
+        @discord.ui.button(label="Lev 10x", style=discord.ButtonStyle.secondary, row=2)
         async def btn_lev10(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1218,16 +1256,17 @@ def create_bot() -> Optional[Any]:
                 f"`{prefix}set <key> <value>`\n"
                 f"`{prefix}pause` · `{prefix}resume`\n"
                 f"`{prefix}kill` · `{prefix}unkill`\n"
-                f"`{prefix}restart` — khởi động lại bot (có xác nhận)\n"
-                f"`{prefix}pull` — git pull + restart (có xác nhận)\n"
-                f"`{prefix}skip clear`\n"
-                f"`{prefix}exclude list|add|remove|clear`\n\n"
-                "**Trên panel:** 🚫 Loại symbol · 📋 Blacklist · "
-                "🔁 Restart · 📥 Pull & Restart"
+                f"`{prefix}restart` / `{prefix}pull` (có xác nhận)\n"
+                f"`{prefix}skip clear` · `{prefix}exclude list|add|remove|clear`\n"
+                f"`{prefix}log [n]` — n dòng cuối bot.log (mặc định 50)\n"
+                f"`{prefix}ml` · `{prefix}ml on|off`\n\n"
+                "**Panel:** 🚫 Loại symbol · 📋 Blacklist · 🔁 Restart · 📥 Pull & Restart"
             ),
             color=COLOR_INFO,
         )
         await ctx.send(embed=emb)
+
+
 
 
     @bot.command(name="ml")
@@ -1267,6 +1306,56 @@ def create_bot() -> Optional[Any]:
             f"`{ctx.prefix}ml` | `{ctx.prefix}ml on|off` | "
             f"`{ctx.prefix}ml collect on|off` | `{ctx.prefix}ml threshold 0.5`"
         )
+
+
+    @bot.command(name="log", aliases=["logs", "tail"])
+    async def cmd_log(ctx, n: str = "50"):
+        """Xem n dòng cuối logs/bot.log (mặc định 50, tối đa 200)."""
+        if not _is_authorized(ctx):
+            await ctx.send("⛔ Không có quyền.", delete_after=10)
+            return
+        try:
+            num = int(str(n).strip())
+        except ValueError:
+            await ctx.send(f"Dùng: `{prefix}log` hoặc `{prefix}log 80` (1–200)")
+            return
+        num = max(1, min(num, 200))
+        ok, payload = _read_log_tail(num)
+        if not ok:
+            await ctx.send(payload)
+            return
+        if len(payload) <= 1900:
+            await ctx.send(payload)
+            return
+        # Tách header / body code block
+        if "```" in payload:
+            parts = payload.split("```")
+            header = parts[0].strip()
+            body = parts[1].strip("\n") if len(parts) > 1 else payload
+        else:
+            header = "📜 log"
+            body = payload
+        lines = body.splitlines()
+        chunk = []
+        size = 0
+        chunks = []
+        for line in lines:
+            add = len(line) + 1
+            if size + add > 1700 and chunk:
+                chunks.append("\n".join(chunk))
+                chunk = [line]
+                size = add
+            else:
+                chunk.append(line)
+                size += add
+        if chunk:
+            chunks.append("\n".join(chunk))
+        await ctx.send(f"{header} · {len(lines)} dòng · {len(chunks)} phần")
+        for ch in chunks[:5]:
+            await ctx.send(f"```\n{ch}\n```")
+        if len(chunks) > 5:
+            await ctx.send(f"… còn {len(chunks) - 5} phần — thử `{prefix}log 40`")
+
 
     @bot.command(name="status")
     async def cmd_status(ctx):
