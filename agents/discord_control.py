@@ -632,7 +632,7 @@ def _status_embed() -> "discord.Embed":
 
 
 def _lookup_position_meta(symbol: str, side: str) -> dict:
-    """Lấy strategy / trade_style từ RiskGate (lệnh bot mở)."""
+    """Lấy strategy / trade_style / open_time từ RiskGate (lệnh bot mở)."""
     st = control_state
     rg = st.risk_gate
     if not rg:
@@ -641,7 +641,6 @@ def _lookup_position_meta(symbol: str, side: str) -> dict:
     key = f"{symbol}_{side_u}"
     pos = (rg.open_positions or {}).get(key)
     if pos is None:
-        # fallback: match symbol only
         for k, p in (rg.open_positions or {}).items():
             if str(k).startswith(str(symbol) + "_"):
                 pos = p
@@ -656,7 +655,53 @@ def _lookup_position_meta(symbol: str, side: str) -> dict:
         except Exception:
             style = ""
     tf = getattr(pos, "timeframe", None) or ""
-    return {"strategy": strategy, "trade_style": style, "timeframe": tf}
+    open_time = getattr(pos, "open_time", None)
+    max_hold = None
+    if hasattr(rg, "max_hold_for_style") and style:
+        try:
+            max_hold = rg.max_hold_for_style(style)
+        except Exception:
+            max_hold = None
+    if max_hold is None and hasattr(rg, "cfg"):
+        try:
+            profiles = (rg.cfg.get("hold_profiles") or {})
+            max_hold = (profiles.get(style) or {}).get("max_hold_minutes")
+        except Exception:
+            pass
+    return {
+        "strategy": strategy,
+        "trade_style": style,
+        "timeframe": tf,
+        "open_time": open_time,
+        "max_hold_minutes": max_hold,
+    }
+
+
+def _format_hold_time(open_time) -> str:
+    """Format thời gian đã giữ lệnh (vd 1h 23m)."""
+    if open_time is None:
+        return "—"
+    try:
+        from datetime import datetime, timezone
+        ot = open_time
+        if getattr(ot, "tzinfo", None) is None:
+            now = datetime.utcnow()
+            delta = now - ot
+        else:
+            now = datetime.now(timezone.utc)
+            if ot.tzinfo is None:
+                ot = ot.replace(tzinfo=timezone.utc)
+            delta = now - ot
+        secs = int(max(0, delta.total_seconds()))
+        h, rem = divmod(secs, 3600)
+        m, s = divmod(rem, 60)
+        if h > 0:
+            return f"{h}h {m}m"
+        if m > 0:
+            return f"{m}m {s}s"
+        return f"{s}s"
+    except Exception:
+        return "—"
 
 
 def _positions_embed() -> "discord.Embed":
@@ -696,15 +741,28 @@ def _positions_embed() -> "discord.Embed":
         strat_s = str(strategy) if strategy else "—"
         style_s = f" · `{style}`" if style else ""
         tf_s = f" · `{tf}`" if tf else ""
+        open_time = meta.get("open_time") or getattr(p, "open_time", None)
+        held_s = _format_hold_time(open_time)
+        max_hold = meta.get("max_hold_minutes")
+        hold_extra = f" / max `{int(max_hold)}m`" if max_hold else ""
+        # giờ mở (UTC) ngắn
+        opened_s = "—"
+        try:
+            if open_time is not None:
+                ot = open_time
+                opened_s = ot.strftime("%H:%M") if hasattr(ot, "strftime") else str(ot)[:16]
+        except Exception:
+            pass
         lines.append(
             f"{flag} `{p.symbol}` **{side}** size=`{p.size}`\n"
             f"　strategy **`{strat_s}`**{style_s}{tf_s}\n"
-            f"　entry `{p.entry_price:.6g}` · uPnL `{upnl:+.4f}`"
+            f"　entry `{p.entry_price:.6g}` · uPnL `{upnl:+.4f}`\n"
+            f"　⏱ giữ **`{held_s}`**{hold_extra} · mở `{opened_s}` UTC"
         )
     emb.description = "\n".join(lines)[:4000]
     emb.add_field(name="Tổng uPnL", value=f"`{total_upnl:+.4f}`", inline=True)
     emb.add_field(name="Số lệnh", value=f"`{len(positions)}`", inline=True)
-    emb.set_footer(text="Strategy lấy từ RiskGate · tối đa 20 dòng")
+    emb.set_footer(text="⏱ Thời gian giữ lấy từ RiskGate/snapshot · tối đa 20 dòng")
     return emb
 
 
