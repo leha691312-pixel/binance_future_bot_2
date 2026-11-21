@@ -70,6 +70,11 @@ ALLOWED_SETTINGS_KEYS = {
     "ml_min_auc_deploy": (float, 0.45, 0.95),
     "ml_retrain_every_new": (int, 5, 200),
     "ml_retrain_hours": (float, 1, 168),
+    # signal_refine / consensus
+    "min_strategy_agree": (int, 1, 10),
+    "mtf_min_align": (int, 1, 5),
+    "htf_ema_fast": (int, 5, 100),
+    "htf_ema_slow": (int, 10, 200),
 }
 
 # String / bool settings
@@ -82,6 +87,26 @@ ALLOWED_SETTINGS_STR = {
     "scan_parallel": ("true", "false", "1", "0", "yes", "no", "on", "off"),
     "killzone_enabled": ("true", "false", "1", "0", "yes", "no", "on", "off"),
     "killzone_mode": ("filter", "tag", "boost"),
+
+    "consensus_enabled": ("Consensus (bật/tắt)", "true/false — cần ≥N strategy cùng chiều"),
+    "consensus_mode": ("Consensus mode", "on/off — alias consensus_enabled"),
+    "min_strategy_agree": ("Consensus: số strategy tối thiểu", "1–10 (vd 2)"),
+    "consensus_same_style": ("Consensus cùng style", "true = chỉ gộp scalp với scalp"),
+    "bias_trigger_enabled": ("Bias+Trigger filter", "true/false"),
+    "htf_bias_enabled": ("HTF bias (EMA khung lớn)", "true/false"),
+    "mtf_enabled": ("MTF bias đa khung", "true/false"),
+    "mtf_require_all_align": ("MTF: bắt buộc mọi TF cùng chiều", "true/false"),
+    "mtf_min_align": ("MTF: số TF đồng thuận tối thiểu", "1–5"),
+    "htf_ema_fast": ("HTF EMA nhanh", "vd 21"),
+    "htf_ema_slow": ("HTF EMA chậm", "vd 50"),
+    # consensus / refine
+    "consensus_enabled": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "consensus_mode": ("on", "off", "true", "false", "1", "0"),  # alias → consensus_enabled
+    "consensus_same_style": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "bias_trigger_enabled": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "htf_bias_enabled": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "mtf_enabled": ("true", "false", "1", "0", "yes", "no", "on", "off"),
+    "mtf_require_all_align": ("true", "false", "1", "0", "yes", "no", "on", "off"),
 }
 
 # Nhãn tiếng Việt cho select / modal
@@ -706,6 +731,22 @@ def _params_embed() -> "discord.Embed":
         label = PARAM_LABELS.get(k, (k, ""))[0]
         set_lines.append(f"• **{label}** (`{k}`): `{st.settings.get(k, 'N/A')}`")
     emb.add_field(name="Settings", value="\n".join(set_lines), inline=False)
+    
+    # signal_refine / consensus
+    sr = st.settings.get("signal_refine") or {}
+    if isinstance(sr, dict) and sr:
+        lines = []
+        for k in (
+            "consensus_enabled", "min_strategy_agree", "consensus_same_style",
+            "bias_trigger_enabled", "htf_bias_enabled", "mtf_enabled",
+            "mtf_require_all_align", "mtf_min_align", "killzone_enabled", "killzone_mode",
+        ):
+            if k in sr:
+                lab = PARAM_LABELS.get(k, (k,))[0]
+                lines.append(f"• **{lab}**: `{sr[k]}`")
+        if lines:
+            emb.add_field(name="Signal refine / Consensus", value="\n".join(lines)[:1020], inline=False)
+
     return emb
 
 
@@ -777,6 +818,19 @@ def _apply_param(key: str, value: str) -> str:
             return f"❌ Giá trị không hợp lệ cho `{key}`"
         if not (lo <= val <= hi):
             return f"❌ `{key}` phải trong [{lo}, {hi}]"
+        refine_nums = {
+            "min_strategy_agree", "mtf_min_align", "htf_ema_fast", "htf_ema_slow",
+        }
+        if key in refine_nums:
+            sr = st.settings.setdefault("signal_refine", {})
+            if not isinstance(sr, dict):
+                sr = {}
+                st.settings["signal_refine"] = sr
+            sr[key] = val
+            _save_settings_yaml(st.settings)
+            _reload_refine_runtime(st)
+            label = PARAM_LABELS.get(key, (key,))[0]
+            return f"✅ **{label}** = `{val}` (signal_refine)"
         st.settings[key] = val
         if key == "ml_prob_threshold" and st.ml_agent is not None:
             try:
@@ -797,18 +851,35 @@ def _apply_param(key: str, value: str) -> str:
         bool_keys = {
             "ml_collect_only", "ml_filter_enabled", "ml_per_style",
             "scan_parallel", "killzone_enabled",
+            "consensus_enabled", "consensus_mode", "consensus_same_style",
+            "bias_trigger_enabled", "htf_bias_enabled", "mtf_enabled",
+            "mtf_require_all_align",
         }
         if key in bool_keys:
             val = raw in ("true", "1", "yes", "on")
         else:
             val = raw
 
-        if key in ("killzone_enabled", "killzone_mode"):
+        # Nested signal_refine keys (consensus / HTF / MTF / killzone)
+        refine_bool_or_str = {
+            "killzone_enabled", "killzone_mode",
+            "consensus_enabled", "consensus_same_style",
+            "bias_trigger_enabled", "htf_bias_enabled", "mtf_enabled",
+            "mtf_require_all_align",
+        }
+        if key == "consensus_mode":
+            key = "consensus_enabled"
+            val = bool(val) if isinstance(val, bool) else raw in ("true", "1", "yes", "on")
+        if key in refine_bool_or_str:
             sr = st.settings.setdefault("signal_refine", {})
             if not isinstance(sr, dict):
                 sr = {}
                 st.settings["signal_refine"] = sr
             sr[key] = val
+            _save_settings_yaml(st.settings)
+            _reload_refine_runtime(st)
+            label = PARAM_LABELS.get(key, (key,))[0]
+            return f"✅ **{label}** = `{val}` (signal_refine)"
         else:
             st.settings[key] = val
 
