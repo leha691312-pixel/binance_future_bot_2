@@ -708,6 +708,32 @@ def _positions_embed() -> "discord.Embed":
     return emb
 
 
+
+def _embed_chunk_fields(emb: "discord.Embed", name: str, lines: list, max_len: int = 1000) -> None:
+    """Chia list dòng thành nhiều field Discord (mỗi value ≤ 1024 ký tự)."""
+    if not lines:
+        emb.add_field(name=name, value="*(trống)*", inline=False)
+        return
+    chunks = []
+    cur = []
+    cur_len = 0
+    for line in lines:
+        line = str(line)
+        add = len(line) + (1 if cur else 0)
+        if cur and cur_len + add > max_len:
+            chunks.append("\n".join(cur))
+            cur = [line]
+            cur_len = len(line)
+        else:
+            cur.append(line)
+            cur_len += add
+    if cur:
+        chunks.append("\n".join(cur))
+    for i, ch in enumerate(chunks[:5]):  # tối đa 5 field / nhóm
+        title = name if i == 0 else f"{name} ({i+1})"
+        emb.add_field(name=title, value=ch[:1024], inline=False)
+
+
 def _params_embed() -> "discord.Embed":
     st = control_state
     rg = st.risk_gate
@@ -722,30 +748,48 @@ def _params_embed() -> "discord.Embed":
     for k in sorted(ALLOWED_RISK_KEYS.keys()):
         label = PARAM_LABELS.get(k, (k, ""))[0]
         risk_lines.append(f"• **{label}** (`{k}`): `{cfg.get(k, 'N/A')}`")
-    emb.add_field(name="Risk", value="\n".join(risk_lines)[:1020], inline=False)
+    _embed_chunk_fields(emb, "Risk", risk_lines)
+
+    sr = st.settings.get("signal_refine") if isinstance(st.settings.get("signal_refine"), dict) else {}
+    refine_keys = {
+        "min_strategy_agree", "mtf_min_align", "htf_ema_fast", "htf_ema_slow",
+        "consensus_enabled", "consensus_mode", "consensus_same_style",
+        "bias_trigger_enabled", "htf_bias_enabled", "mtf_enabled",
+        "mtf_require_all_align", "killzone_enabled", "killzone_mode",
+    }
+
     set_lines = []
     for k in sorted(ALLOWED_SETTINGS_KEYS.keys()):
+        if k in refine_keys:
+            continue
         label = PARAM_LABELS.get(k, (k, ""))[0]
         set_lines.append(f"• **{label}** (`{k}`): `{st.settings.get(k, 'N/A')}`")
     for k in sorted(ALLOWED_SETTINGS_STR.keys()):
+        if k in refine_keys:
+            continue
         label = PARAM_LABELS.get(k, (k, ""))[0]
-        set_lines.append(f"• **{label}** (`{k}`): `{st.settings.get(k, 'N/A')}`")
-    emb.add_field(name="Settings", value="\n".join(set_lines), inline=False)
-    
-    # signal_refine / consensus
-    sr = st.settings.get("signal_refine") or {}
-    if isinstance(sr, dict) and sr:
-        lines = []
-        for k in (
-            "consensus_enabled", "min_strategy_agree", "consensus_same_style",
-            "bias_trigger_enabled", "htf_bias_enabled", "mtf_enabled",
-            "mtf_require_all_align", "mtf_min_align", "killzone_enabled", "killzone_mode",
-        ):
-            if k in sr:
-                lab = PARAM_LABELS.get(k, (k,))[0]
-                lines.append(f"• **{lab}**: `{sr[k]}`")
-        if lines:
-            emb.add_field(name="Signal refine / Consensus", value="\n".join(lines)[:1020], inline=False)
+        # nested?
+        val = st.settings.get(k, "N/A")
+        set_lines.append(f"• **{label}** (`{k}`): `{val}`")
+    _embed_chunk_fields(emb, "Settings", set_lines)
+
+    # signal_refine / consensus (đọc nested, không trộn vào Settings dài)
+    lines = []
+    for k in (
+        "consensus_enabled", "min_strategy_agree", "consensus_same_style",
+        "bias_trigger_enabled", "htf_bias_enabled", "mtf_enabled",
+        "mtf_require_all_align", "mtf_min_align", "htf_ema_fast", "htf_ema_slow",
+        "killzone_enabled", "killzone_mode",
+    ):
+        if k in sr:
+            lab = PARAM_LABELS.get(k, (k,))[0]
+            lines.append(f"• **{lab}** (`{k}`): `{sr[k]}`")
+        elif k in st.settings:
+            lab = PARAM_LABELS.get(k, (k,))[0]
+            lines.append(f"• **{lab}** (`{k}`): `{st.settings.get(k)}`")
+    if not lines:
+        lines = ["• *(chưa có block signal_refine — dùng !set consensus_enabled true)*"]
+    _embed_chunk_fields(emb, "Signal refine / Consensus", lines)
 
     return emb
 
