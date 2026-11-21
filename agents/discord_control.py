@@ -831,6 +831,30 @@ def _panel_embed() -> "discord.Embed":
     return emb
 
 
+
+def _reload_refine_runtime(st) -> None:
+    """Đẩy signal_refine config vào scanner (nếu có) để áp dụng ngay."""
+    try:
+        sr = st.settings.get("signal_refine") or {}
+        if not isinstance(sr, dict):
+            return
+        sc = getattr(st, "scanner", None)
+        if sc is None:
+            return
+        if hasattr(sc, "refine_cfg") and isinstance(getattr(sc, "refine_cfg", None), dict):
+            sc.refine_cfg.update(sr)
+        elif hasattr(sc, "signal_refine_cfg"):
+            sc.signal_refine_cfg = dict(sr)
+        for k, v in sr.items():
+            try:
+                setattr(sc, k, v)
+            except Exception:
+                pass
+        logger.info(f"signal_refine runtime updated: {list(sr.keys())}")
+    except Exception as e:
+        logger.warning(f"_reload_refine_runtime: {e}")
+
+
 def _apply_param(key: str, value: str) -> str:
     key = key.strip().lower()
     st = control_state
