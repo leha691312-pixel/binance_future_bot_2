@@ -283,6 +283,101 @@ def _format_excluded_msg() -> str:
 
 
 
+
+# Strategy names known to bot (fallback if import fails)
+_KNOWN_STRATEGIES = [
+    "ORB", "LiquiditySweep", "MARibbon", "StochBB", "PivotScalp", "EMARSIScalp",
+    "OrderBlock", "SupplyDemand", "FVG", "BOS_CHOCH", "TrendMA", "MomentumRSI",
+    "PullbackEMA", "RangeBounce", "OI_Funding", "SwingMACross", "SwingRSI",
+    "FibPullback", "BBSqueeze", "EMARSIMACDDay", "PremiumDiscount",
+]
+
+
+def _all_strategy_names() -> list:
+    try:
+        from agents.strategies import list_strategy_names
+        names = list(list_strategy_names() or [])
+        if names:
+            return sorted(set(names))
+    except Exception:
+        pass
+    try:
+        from agents.strategies import STRATEGY_MAP
+        return sorted(STRATEGY_MAP.keys())
+    except Exception:
+        pass
+    return list(_KNOWN_STRATEGIES)
+
+
+def _get_enabled_strategies() -> list:
+    st = control_state
+    # Ưu tiên list runtime từ scanner
+    sc = getattr(st, "scanner", None)
+    if sc is not None and getattr(sc, "strategies", None):
+        return [s.name for s in sc.strategies]
+    raw = st.settings.get("enabled_strategies")
+    if raw is None:
+        return _all_strategy_names()
+    return [str(x).strip() for x in raw if str(x).strip()]
+
+
+def _normalize_strategy_name(name: str) -> str:
+    name = (name or "").strip()
+    if not name:
+        return ""
+    all_names = _all_strategy_names()
+    lower_map = {n.lower(): n for n in all_names}
+    if name in all_names:
+        return name
+    if name.lower() in lower_map:
+        return lower_map[name.lower()]
+    # partial match
+    matches = [n for n in all_names if name.lower() in n.lower()]
+    if len(matches) == 1:
+        return matches[0]
+    return name  # keep as-is; may fail validation
+
+
+def _persist_strategies(enabled: list) -> list:
+    """Ghi settings.yaml + reload scanner runtime."""
+    st = control_state
+    cleaned = []
+    seen = set()
+    for n in enabled:
+        n = _normalize_strategy_name(str(n))
+        if not n or n in seen:
+            continue
+        seen.add(n)
+        cleaned.append(n)
+    st.settings["enabled_strategies"] = cleaned
+    _save_settings_yaml(st.settings)
+    sc = getattr(st, "scanner", None)
+    if sc is not None and hasattr(sc, "reload_strategies"):
+        try:
+            sc.reload_strategies(
+                enabled=cleaned if cleaned else None,
+                strategy_params=st.settings.get("strategy_params") or {},
+            )
+        except Exception as e:
+            logger.warning(f"reload_strategies failed: {e}")
+    return cleaned
+
+
+def _format_strategies_msg() -> str:
+    all_n = _all_strategy_names()
+    on = set(_get_enabled_strategies())
+    lines_on = [f"✅ `{n}`" for n in all_n if n in on]
+    lines_off = [f"⬜ `{n}`" for n in all_n if n not in on]
+    # unknown enabled
+    extra = [f"✅ `{n}` (custom)" for n in sorted(on) if n not in set(all_n)]
+    body_on = "\n".join(lines_on + extra) or "_(không có)_"
+    body_off = "\n".join(lines_off) or "_(không có)_"
+    return (
+        f"**Strategies bật ({len(on)}):**\n{body_on}\n\n"
+        f"**Tắt / chưa bật ({len(lines_off)}):**\n{body_off}"
+    )
+
+
 def _log_file_path() -> Path:
     """Đường dẫn file log: settings.log_file hoặc logs/bot.log."""
     root = _repo_root()
@@ -922,6 +1017,136 @@ if HAS_DISCORD:
             emb = discord.Embed(description=msg[:4000], color=color)
             await interaction.response.send_message(embed=emb, ephemeral=True)
 
+
+    class StrategyEnableSelect(discord.ui.Select):
+        """Chọn strategy đang tắt để BẬT (multi, max 25 option)."""
+
+        def __init__(self):
+            on = set(_get_enabled_strategies())
+            all_n = _all_strategy_names()
+            off = [n for n in all_n if n not in on]
+            options = [
+                discord.SelectOption(label=n[:100], value=n, description="Chạm để bật")
+                for n in off[:25]
+            ]
+            if not options:
+                options = [
+                    discord.SelectOption(
+                        label="(không còn strategy tắt)",
+                        value="__none__",
+                        description="Tất cả đã bật",
+                    )
+                ]
+            super().__init__(
+                placeholder="✅ Chọn strategy để BẬT…",
+                min_values=1,
+                max_values=min(len(options), 25),
+                options=options,
+                row=1,
+            )
+
+        async def callback(self, interaction: discord.Interaction):
+            if not await _check_interaction(interaction):
+                return
+            vals = [v for v in self.values if v != "__none__"]
+            if not vals:
+                await interaction.response.send_message("Không có gì để bật.", ephemeral=True)
+                return
+            current = list(_get_enabled_strategies())
+            cleaned = _persist_strategies(list(dict.fromkeys(current + vals)))
+            await interaction.response.edit_message(
+                content=_format_strategies_msg()[:1900],
+                view=StrategyPanelView(),
+            )
+            await interaction.followup.send(
+                f"✅ Đã bật: {', '.join(f'`{v}`' for v in vals)} · total **{len(cleaned)}**",
+                ephemeral=True,
+            )
+
+    class StrategyDisableSelect(discord.ui.Select):
+        """Chọn strategy đang bật để TẮT."""
+
+        def __init__(self):
+            on = list(_get_enabled_strategies())
+            options = [
+                discord.SelectOption(label=n[:100], value=n, description="Chạm để tắt")
+                for n in on[:25]
+            ]
+            if not options:
+                options = [
+                    discord.SelectOption(
+                        label="(không còn strategy bật)",
+                        value="__none__",
+                        description="Tất cả đã tắt",
+                    )
+                ]
+            super().__init__(
+                placeholder="⬜ Chọn strategy để TẮT…",
+                min_values=1,
+                max_values=min(len(options), 25),
+                options=options,
+                row=2,
+            )
+
+        async def callback(self, interaction: discord.Interaction):
+            if not await _check_interaction(interaction):
+                return
+            vals = [v for v in self.values if v != "__none__"]
+            if not vals:
+                await interaction.response.send_message("Không có gì để tắt.", ephemeral=True)
+                return
+            remove = set(vals)
+            current = [n for n in _get_enabled_strategies() if n not in remove]
+            cleaned = _persist_strategies(current)
+            await interaction.response.edit_message(
+                content=_format_strategies_msg()[:1900],
+                view=StrategyPanelView(),
+            )
+            await interaction.followup.send(
+                f"⬜ Đã tắt: {', '.join(f'`{v}`' for v in vals)} · còn **{len(cleaned)}**",
+                ephemeral=True,
+            )
+
+    class StrategyPanelView(discord.ui.View):
+        """Panel strategy — tối đa 3 hàng: nút + 2 Select (mỗi Select = 1 hàng đầy đủ)."""
+
+        def __init__(self):
+            super().__init__(timeout=1800)
+            self.add_item(StrategyEnableSelect())
+            self.add_item(StrategyDisableSelect())
+
+        @discord.ui.button(label="Làm mới", style=discord.ButtonStyle.primary, emoji="🔄", row=0)
+        async def btn_refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            await interaction.response.edit_message(
+                content=_format_strategies_msg()[:1900],
+                view=StrategyPanelView(),
+            )
+
+        @discord.ui.button(label="Bật hết", style=discord.ButtonStyle.success, emoji="✅", row=0)
+        async def btn_all_on(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            cleaned = _persist_strategies(list(_all_strategy_names()))
+            await interaction.response.edit_message(
+                content=_format_strategies_msg()[:1900],
+                view=StrategyPanelView(),
+            )
+            await interaction.followup.send(f"✅ Bật tất cả **{len(cleaned)}** strategy.", ephemeral=True)
+
+        @discord.ui.button(label="Tắt hết", style=discord.ButtonStyle.secondary, emoji="⬜", row=0)
+        async def btn_all_off(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            _persist_strategies([])
+            await interaction.response.edit_message(
+                content=_format_strategies_msg()[:1900],
+                view=StrategyPanelView(),
+            )
+            await interaction.followup.send("⬜ Đã tắt hết strategy.", ephemeral=True)
+
+
     class ParamSelect(discord.ui.Select):
         def __init__(self):
             options = []
@@ -1132,22 +1357,16 @@ if HAS_DISCORD:
             await interaction.response.send_message(msg, ephemeral=True)
 
         @discord.ui.button(
-            label="Xóa skip", style=discord.ButtonStyle.secondary, emoji="🧹", row=1
+            label="Strategy", style=discord.ButtonStyle.primary, emoji="🎯", row=1
         )
-        async def btn_skip(self, interaction: discord.Interaction, button: discord.ui.Button):
+        async def btn_strategy_panel(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
-            st = control_state
-            if st.executor:
-                n = len(st.executor.skip_symbols)
-                st.executor.skip_symbols.clear()
-                await interaction.response.send_message(
-                    f"🧹 Đã xóa **{n}** symbol khỏi skip list.", ephemeral=True
-                )
-            else:
-                await interaction.response.send_message(
-                    "Executor chưa sẵn sàng.", ephemeral=True
-                )
+            await interaction.response.send_message(
+                content=_format_strategies_msg()[:1900],
+                view=StrategyPanelView(),
+                ephemeral=True,
+            )
 
         # ---- Row 4: blacklist + restart ----
         
@@ -1296,6 +1515,7 @@ def create_bot() -> Optional[Any]:
                 f"`{prefix}restart` / `{prefix}pull` (có xác nhận)\n"
                 f"`{prefix}skip clear` · `{prefix}exclude list|add|remove|clear`\n"
                 f"`{prefix}log [n]` — n dòng cuối bot.log (mặc định 50)\n"
+                f"`{prefix}strategy list|on|off <name...>`\n"
                 f"`{prefix}ml` · `{prefix}ml on|off`\n\n"
                 "**Panel:** 🚫 Loại symbol · 📋 Blacklist · 🔁 Restart · 📥 Pull & Restart"
             ),
@@ -1508,6 +1728,105 @@ def create_bot() -> Optional[Any]:
             await ctx.send(
                 f"Skip runtime: **{n}**. `{prefix}skip clear` | `{prefix}exclude list`"
             )
+
+    
+    @bot.command(name="strategy", aliases=["strategies", "strats", "strat"])
+    async def cmd_strategy(ctx, action: str = None, *names: str):
+        """Bật/tắt strategy: list | on|add | off|remove | all | none|clear"""
+        if not _is_authorized(ctx):
+            await ctx.send("⛔ Không có quyền.", delete_after=10)
+            return
+        act = (action or "panel").strip().lower()
+        all_names = set(_all_strategy_names())
+        current = list(_get_enabled_strategies())
+
+        if act in ("list", "ls", "status", "show", "panel", "ui", "menu"):
+            msg = _format_strategies_msg()
+            await ctx.send(msg[:1900], view=StrategyPanelView())
+            return
+
+        if act in ("all", "enable_all", "on_all"):
+            cleaned = _persist_strategies(list(_all_strategy_names()))
+            await ctx.send(f"✅ Bật **tất cả** ({len(cleaned)}):\n" + ", ".join(f"`{n}`" for n in cleaned))
+            return
+
+        if act in ("none", "clear", "off_all", "disable_all"):
+            # Giữ ít nhất 1 nếu muốn — nhưng user hỏi clear thì clear
+            _persist_strategies([])
+            await ctx.send("⬜ Đã **tắt hết** strategy (scan sẽ không có signal strategy). Dùng `!strategy all` hoặc `!strategy on ORB` để bật lại.")
+            return
+
+        if act in ("on", "add", "enable", "bat"):
+            if not names:
+                await ctx.send(f"Dùng: `{prefix}strategy on ORB FVG TrendMA`")
+                return
+            resolved, unknown = [], []
+            for raw in names:
+                n = _normalize_strategy_name(raw)
+                if n in all_names or n:
+                    # accept known; warn unknown
+                    if n not in all_names and n.lower() not in {x.lower() for x in all_names}:
+                        unknown.append(raw)
+                    else:
+                        resolved.append(n if n in all_names else _normalize_strategy_name(raw))
+            # re-resolve strictly
+            resolved = []
+            for raw in names:
+                n = _normalize_strategy_name(raw)
+                if n in all_names:
+                    resolved.append(n)
+                else:
+                    unknown.append(raw)
+            if not resolved and unknown:
+                await ctx.send(
+                    "Không nhận tên: " + ", ".join(f"`{u}`" for u in unknown)
+                    + f"\nDanh sách: `{prefix}strategy list`"
+                )
+                return
+            new_list = list(dict.fromkeys(current + resolved))
+            cleaned = _persist_strategies(new_list)
+            extra = f"\n⚠️ Bỏ qua: {', '.join(unknown)}" if unknown else ""
+            await ctx.send(
+                f"✅ Bật: {', '.join(f'`{n}`' for n in resolved)}\n"
+                f"Đang active **{len(cleaned)}**: " + ", ".join(f"`{n}`" for n in cleaned) + extra
+            )
+            return
+
+        if act in ("off", "remove", "disable", "rm", "tat"):
+            if not names:
+                await ctx.send(f"Dùng: `{prefix}strategy off ORB FVG`")
+                return
+            resolved, unknown = [], []
+            for raw in names:
+                n = _normalize_strategy_name(raw)
+                if n in all_names or n in current:
+                    resolved.append(n if n in current or n in all_names else raw)
+                else:
+                    unknown.append(raw)
+            resolved = []
+            for raw in names:
+                n = _normalize_strategy_name(raw)
+                if n in current or n in all_names:
+                    resolved.append(n)
+                else:
+                    unknown.append(raw)
+            remove_set = set(resolved)
+            new_list = [n for n in current if n not in remove_set]
+            cleaned = _persist_strategies(new_list)
+            extra = f"\n⚠️ Không thấy: {', '.join(unknown)}" if unknown else ""
+            await ctx.send(
+                f"⬜ Tắt: {', '.join(f'`{n}`' for n in resolved)}\n"
+                f"Còn **{len(cleaned)}**: " + (", ".join(f"`{n}`" for n in cleaned) or "_(rỗng)_") + extra
+            )
+            return
+
+        await ctx.send(
+            f"`{prefix}strategy list`\n"
+            f"`{prefix}strategy on ORB FVG`\n"
+            f"`{prefix}strategy off TrendMA`\n"
+            f"`{prefix}strategy all` · `{prefix}strategy none`"
+        )
+
 
     @bot.command(name="exclude", aliases=["blacklist", "ban"])
     async def cmd_exclude(ctx, action: str = None, *symbols: str):
