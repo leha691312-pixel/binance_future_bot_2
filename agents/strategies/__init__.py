@@ -3,7 +3,6 @@ from typing import List, Optional, Dict, Any
 
 from .base import BaseStrategy
 
-# Core SMC / original
 from .orb import ORBStrategy
 from .liquidity_sweep import LiquiditySweepStrategy
 from .order_block import OrderBlockStrategy
@@ -12,28 +11,23 @@ from .fvg import FVGStrategy
 from .bos_choch import BOSCHOCHStrategy
 from .oi_funding import OIFundingStrategy
 
-# Sarwa-style day
 from .trend_ma import TrendMAStrategy
 from .momentum_rsi import MomentumRSIStrategy
 from .pullback_ema import PullbackEMAStrategy
 from .range_bounce import RangeBounceStrategy
 
-# Scalp
 from .ma_ribbon import MARibbonStrategy
 from .stoch_bb import StochBBStrategy
 from .pivot_scalp import PivotScalpStrategy
 from .ema_rsi_scalp import EMARSIScalpStrategy
 
-# Swing
 from .swing_ma_cross import SwingMACrossStrategy
 from .swing_rsi import SwingRSIStrategy
 from .fib_pullback import FibPullbackStrategy
 from .bb_squeeze import BBSqueezeStrategy
 
-# ICT / day extras
 from .premium_discount import PremiumDiscountStrategy
 
-# Optional – import an toàn nếu file chưa có trên máy
 try:
     from .ema_rsi_macd_day import EMARSIMACDDayStrategy
 except Exception:
@@ -48,6 +42,11 @@ try:
     from .vwap_ema9 import VWAPEMA9Strategy
 except Exception:
     VWAPEMA9Strategy = None
+
+try:
+    from .supertrend import SupertrendStrategy
+except Exception:
+    SupertrendStrategy = None
 
 
 STRATEGY_MAP = {
@@ -79,6 +78,8 @@ if MartinEMAPullbackStrategy is not None:
     STRATEGY_MAP["MartinEMAPullback"] = MartinEMAPullbackStrategy
 if VWAPEMA9Strategy is not None:
     STRATEGY_MAP["VWAPEMA9"] = VWAPEMA9Strategy
+if SupertrendStrategy is not None:
+    STRATEGY_MAP["Supertrend"] = SupertrendStrategy
 
 
 STRATEGY_ALIASES = {
@@ -150,6 +151,8 @@ STRATEGY_ALIASES = {
     "vwapema9": "VWAPEMA9",
     "vwap": "VWAPEMA9",
     "vwap_ema": "VWAPEMA9",
+    "supertrend": "Supertrend",
+    "st": "Supertrend",
 }
 
 
