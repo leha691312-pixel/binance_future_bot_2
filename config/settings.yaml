@@ -19,61 +19,120 @@ excluded_symbols: []
 timeframes: ["15m", "1h", "4h"]
 
 enabled_strategies:
-  - ORB
-  - LiquiditySweep
-  - MARibbon
-  - StochBB
-  - PivotScalp
-  - EMARSIScalp
-  - OrderBlock
-  - SupplyDemand
-  - FVG
-  - BOS_CHOCH
-  - TrendMA
-  - MomentumRSI
-  - PullbackEMA
-  - RangeBounce
-  - OI_Funding
-  - SwingMACross
-  - SwingRSI
+  - VWAPEMA9
   - FibPullback
-  - BBSqueeze
-  - PremiumDiscount
+  - MartinEMAPullback
+  - SupplyDemand
+  - EMARSIMACDDay
 
 strategy_params:
-  ORB: {range_bars: 4, rr: 2.0}
-  LiquiditySweep: {lookback: 30, rr: 2.0}
-  MARibbon: {sma1: 5, sma2: 8, sma3: 13, rr: 1.8}
-  StochBB: {k_period: 5, d_period: 3, bb_period: 13, bb_std: 3.0, rr: 1.6}
-  PivotScalp: {left: 2, right: 2, rr: 1.6}
-  EMARSIScalp: {ema_fast: 8, ema_slow: 21, rsi_period: 7, rr: 1.5}
-  OrderBlock: {impulse_mult: 2.2, rr: 2.5}
-  SupplyDemand: {rr: 2.0}
-  FVG: {min_gap_pct: 0.001, rr: 2.0}
-  BOS_CHOCH: {rr: 2.0}
-  TrendMA: {ema_fast: 9, ema_slow: 21, adx_period: 14, adx_min: 25, rr: 2.0}
-  MomentumRSI: {rsi_period: 14, adx_min: 20, rr: 2.0}
-  PullbackEMA: {ema_trend: 50, ema_pull: 21, rr: 2.2}
-  RangeBounce: {lookback: 40, adx_max: 22, rr: 1.8}
-  OI_Funding: {rr: 2.0}
-  SwingMACross: {ema_fast: 20, ema_slow: 50, rr: 2.5}
-  SwingRSI: {rsi_period: 14, rr: 2.2}
-  FibPullback: {lookback: 60, rr: 2.5}
-  BBSqueeze: {bb_period: 20, squeeze_lookback: 20, rr: 2.5}
-  PremiumDiscount: {lookback: 50, discount_max: 0.35, premium_min: 0.65, rr: 2.0, require_rejection: true}
   VWAPEMA9:
-    ema_period: 9
-    use_daily_vwap: true      # VWAP reset mỗi ngày UTC; false = rolling
-    vwap_window: 48           # dùng khi use_daily_vwap: false
+    enable_long: false
+    enable_short: true
+    rr: 1.2
+    min_rr: 1.0
+    sl_buffer_atr: 0.45
     touch_pct: 0.0015
-    pullback_lookback: 5
+    pullback_lookback: 4
+    require_vwap_side: true
+    # BT: n=116 WR=59.5% meanR=0.238 totalR=27.6 PF=1.56 score=27.1
+  FibPullback:
+    rr: 1.2
+    min_rr: 1.0
+    atr_sl_mult: 1.4
+    # BT: n=86 WR=80.2% meanR=0.302 totalR=26.0 PF=2.51 score=25.8
+  MartinEMAPullback:
+    rr: 1.2
+    # BT: n=194 WR=44.8% meanR=0.122 totalR=23.7 PF=1.2 score=22.8
+  SupplyDemand:
     rr: 1.5
     min_rr: 1.2
-    sl_buffer_atr: 0.35
-    sl_swing_lookback: 8
-    require_vwap_side: true   # long chỉ khi giá > VWAP
-    enable_long: true
-    enable_short: true
+    atr_sl_mult: 1.6
+    # BT: n=156 WR=46.8% meanR=0.056 totalR=8.8 PF=1.1 score=7.6
+  EMARSIMACDDay:
+    rr: 1.5
+    min_rr: 1.3
+    # BT: n=10 WR=60.0% meanR=0.374 totalR=3.7 PF=1.87 score=3.6
+  TrendMA:
+    rr: 1.5
+    min_rr: 1.2
+    atr_sl_mult: 1.6
+    # BT: n=213 WR=46.5% meanR=0.012 totalR=2.6 PF=1.02 score=1.1
+  PullbackEMA:
+    rr: 1.2
+    min_rr: 1.0
+    atr_sl_mult: 1.4
+    # BT: n=76 WR=53.9% meanR=0.02 totalR=1.5 PF=1.04 score=0.8
+  StochBB:
+    rr: 1.5
+    min_rr: 1.2
+    atr_sl_mult: 1.6
+    # BT: n=28 WR=60.7% meanR=-0.059 totalR=-1.6 PF=0.86 score=-2.1
+  SwingMACross:
+    rr: 1.2
+    min_rr: 1.0
+    atr_sl_mult: 1.4
+    # BT: n=24 WR=50.0% meanR=-0.074 totalR=-1.8 PF=0.86 score=-2.3
+  OrderBlock:
+    rr: 1.2
+    min_rr: 1.0
+    atr_sl_mult: 1.4
+    # BT: n=20 WR=45.0% meanR=-0.201 totalR=-4.0 PF=0.68 score=-4.4
+  SwingRSI:
+    rr: 1.5
+    min_rr: 1.2
+    atr_sl_mult: 1.6
+    # BT: n=178 WR=43.8% meanR=-0.035 totalR=-6.2 PF=0.94 score=-7.6
+  BBSqueeze:
+    rr: 1.2
+    min_rr: 1.0
+    atr_sl_mult: 1.4
+    # BT: n=53 WR=39.6% meanR=-0.243 totalR=-12.9 PF=0.64 score=-14.0
+  MomentumRSI:
+    rr: 1.2
+    min_rr: 1.0
+    atr_sl_mult: 1.4
+    # BT: n=73 WR=43.8% meanR=-0.206 totalR=-15.0 PF=0.68 score=-16.5
+  EMARSIScalp:
+    rr: 1.2
+    min_rr: 1.0
+    atr_sl_mult: 1.4
+    # BT: n=77 WR=42.9% meanR=-0.23 totalR=-17.7 PF=0.64 score=-19.9
+  FVG:
+    rr: 1.5
+    min_rr: 1.2
+    atr_sl_mult: 1.6
+    # BT: n=238 WR=44.1% meanR=-0.074 totalR=-17.6 PF=0.88 score=-20.0
+  MARibbon:
+    rr: 1.5
+    min_rr: 1.2
+    atr_sl_mult: 1.6
+    # BT: n=236 WR=41.5% meanR=-0.103 totalR=-24.3 PF=0.84 score=-27.1
+  PivotScalp:
+    rr: 1.5
+    min_rr: 1.2
+    atr_sl_mult: 1.6
+    # BT: n=180 WR=38.3% meanR=-0.208 totalR=-37.4 PF=0.7 score=-40.7
+  PremiumDiscount:
+    rr: 1.3
+    atr_sl_mult: 1.6
+    # BT: n=225 WR=22.7% meanR=-0.356 totalR=-80.1 PF=0.58 score=-86.7
+  ORB:
+    rr: 1.3
+    atr_sl_mult: 1.5
+    # insufficient trades in sample – conservative
+  LiquiditySweep:
+    rr: 1.3
+    atr_sl_mult: 1.5
+    # insufficient trades in sample – conservative
+  RangeBounce:
+    rr: 1.3
+    atr_sl_mult: 1.5
+    # insufficient trades in sample – conservative
+  BOS_CHOCH:
+    rr: 1.2
+    swing_lookback: 5
+    # insufficient trades in sample – conservative
     
 # --- Làm sạch signal: consensus + HTF ---
 signal_refine:
