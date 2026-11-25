@@ -48,6 +48,11 @@ try:
 except Exception:
     SupertrendStrategy = None
 
+try:
+    from .lux_ict_confluence import LuxICTConfluenceStrategy
+except Exception:
+    LuxICTConfluenceStrategy = None
+
 
 STRATEGY_MAP = {
     "ORB": ORBStrategy,
@@ -80,6 +85,8 @@ if VWAPEMA9Strategy is not None:
     STRATEGY_MAP["VWAPEMA9"] = VWAPEMA9Strategy
 if SupertrendStrategy is not None:
     STRATEGY_MAP["Supertrend"] = SupertrendStrategy
+if LuxICTConfluenceStrategy is not None:
+    STRATEGY_MAP["LuxICTConfluence"] = LuxICTConfluenceStrategy
 
 
 STRATEGY_ALIASES = {
@@ -153,6 +160,11 @@ STRATEGY_ALIASES = {
     "vwap_ema": "VWAPEMA9",
     "supertrend": "Supertrend",
     "st": "Supertrend",
+    "lux_ict_confluence": "LuxICTConfluence",
+    "luxictconfluence": "LuxICTConfluence",
+    "lux_ict": "LuxICTConfluence",
+    "luxict": "LuxICTConfluence",
+    "ict": "LuxICTConfluence",
 }
 
 
