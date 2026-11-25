@@ -137,10 +137,10 @@ strategy_params:
 # --- Làm sạch signal: consensus + HTF ---
 signal_refine:
   consensus_enabled: true
-  min_strategy_agree: 2          # cần ≥ 2 strategy cùng symbol+side
+  min_strategy_agree: 1          # cần ≥ 2 strategy cùng symbol+side
   consensus_same_style: false    # true = chỉ đếm trong cùng scalp/day/swing
   bias_trigger_enabled: false    # true = cần bias + trigger (siết hơn)
-  htf_bias_enabled: true
+  htf_bias_enabled: false
   htf_timeframe: "1h"
   htf_ema_fast: 21
   htf_ema_slow: 50
