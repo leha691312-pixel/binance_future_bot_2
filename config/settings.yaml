@@ -61,7 +61,20 @@ strategy_params:
   FibPullback: {lookback: 60, rr: 2.5}
   BBSqueeze: {bb_period: 20, squeeze_lookback: 20, rr: 2.5}
   PremiumDiscount: {lookback: 50, discount_max: 0.35, premium_min: 0.65, rr: 2.0, require_rejection: true}
-
+  VWAPEMA9:
+    ema_period: 9
+    use_daily_vwap: true      # VWAP reset mỗi ngày UTC; false = rolling
+    vwap_window: 48           # dùng khi use_daily_vwap: false
+    touch_pct: 0.0015
+    pullback_lookback: 5
+    rr: 1.5
+    min_rr: 1.2
+    sl_buffer_atr: 0.35
+    sl_swing_lookback: 8
+    require_vwap_side: true   # long chỉ khi giá > VWAP
+    enable_long: true
+    enable_short: true
+    
 # --- Làm sạch signal: consensus + HTF ---
 signal_refine:
   consensus_enabled: true
