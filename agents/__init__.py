@@ -1,0 +1,194 @@
+"""Strategy registry – full map for binance futures bot."""
+from typing import List, Optional, Dict, Any
+
+from .base import BaseStrategy
+
+# Core SMC / original
+from .orb import ORBStrategy
+from .liquidity_sweep import LiquiditySweepStrategy
+from .order_block import OrderBlockStrategy
+from .supply_demand import SupplyDemandStrategy
+from .fvg import FVGStrategy
+from .bos_choch import BOSCHOCHStrategy
+from .oi_funding import OIFundingStrategy
+
+# Sarwa-style day
+from .trend_ma import TrendMAStrategy
+from .momentum_rsi import MomentumRSIStrategy
+from .pullback_ema import PullbackEMAStrategy
+from .range_bounce import RangeBounceStrategy
+
+# Scalp
+from .ma_ribbon import MARibbonStrategy
+from .stoch_bb import StochBBStrategy
+from .pivot_scalp import PivotScalpStrategy
+from .ema_rsi_scalp import EMARSIScalpStrategy
+
+# Swing
+from .swing_ma_cross import SwingMACrossStrategy
+from .swing_rsi import SwingRSIStrategy
+from .fib_pullback import FibPullbackStrategy
+from .bb_squeeze import BBSqueezeStrategy
+
+# ICT / day extras
+from .premium_discount import PremiumDiscountStrategy
+
+# Optional – import an toàn nếu file chưa có trên máy
+try:
+    from .ema_rsi_macd_day import EMARSIMACDDayStrategy
+except Exception:
+    EMARSIMACDDayStrategy = None
+
+try:
+    from .martin_ema_pullback import MartinEMAPullbackStrategy
+except Exception:
+    MartinEMAPullbackStrategy = None
+
+try:
+    from .vwap_ema9 import VWAPEMA9Strategy
+except Exception:
+    VWAPEMA9Strategy = None
+
+
+STRATEGY_MAP = {
+    "ORB": ORBStrategy,
+    "LiquiditySweep": LiquiditySweepStrategy,
+    "OrderBlock": OrderBlockStrategy,
+    "SupplyDemand": SupplyDemandStrategy,
+    "FVG": FVGStrategy,
+    "BOS_CHOCH": BOSCHOCHStrategy,
+    "OI_Funding": OIFundingStrategy,
+    "TrendMA": TrendMAStrategy,
+    "MomentumRSI": MomentumRSIStrategy,
+    "PullbackEMA": PullbackEMAStrategy,
+    "RangeBounce": RangeBounceStrategy,
+    "MARibbon": MARibbonStrategy,
+    "StochBB": StochBBStrategy,
+    "PivotScalp": PivotScalpStrategy,
+    "EMARSIScalp": EMARSIScalpStrategy,
+    "SwingMACross": SwingMACrossStrategy,
+    "SwingRSI": SwingRSIStrategy,
+    "FibPullback": FibPullbackStrategy,
+    "BBSqueeze": BBSqueezeStrategy,
+    "PremiumDiscount": PremiumDiscountStrategy,
+}
+
+if EMARSIMACDDayStrategy is not None:
+    STRATEGY_MAP["EMARSIMACDDay"] = EMARSIMACDDayStrategy
+if MartinEMAPullbackStrategy is not None:
+    STRATEGY_MAP["MartinEMAPullback"] = MartinEMAPullbackStrategy
+if VWAPEMA9Strategy is not None:
+    STRATEGY_MAP["VWAPEMA9"] = VWAPEMA9Strategy
+
+
+STRATEGY_ALIASES = {
+    "orb": "ORB",
+    "liquidity_sweep": "LiquiditySweep",
+    "liquiditysweep": "LiquiditySweep",
+    "sweep": "LiquiditySweep",
+    "order_block": "OrderBlock",
+    "orderblock": "OrderBlock",
+    "ob": "OrderBlock",
+    "supply_demand": "SupplyDemand",
+    "supplydemand": "SupplyDemand",
+    "sd": "SupplyDemand",
+    "fvg": "FVG",
+    "bos_choch": "BOS_CHOCH",
+    "bos": "BOS_CHOCH",
+    "choch": "BOS_CHOCH",
+    "oi_funding": "OI_Funding",
+    "oi": "OI_Funding",
+    "funding": "OI_Funding",
+    "trend": "TrendMA",
+    "trend_ma": "TrendMA",
+    "trendma": "TrendMA",
+    "momentum": "MomentumRSI",
+    "momentum_rsi": "MomentumRSI",
+    "momentumrsi": "MomentumRSI",
+    "rsi": "MomentumRSI",
+    "pullback": "PullbackEMA",
+    "pullback_ema": "PullbackEMA",
+    "pullbackema": "PullbackEMA",
+    "range": "RangeBounce",
+    "range_bounce": "RangeBounce",
+    "rangebounce": "RangeBounce",
+    "ma_ribbon": "MARibbon",
+    "maribbon": "MARibbon",
+    "ribbon": "MARibbon",
+    "stoch_bb": "StochBB",
+    "stochbb": "StochBB",
+    "stochastic": "StochBB",
+    "pivot": "PivotScalp",
+    "pivot_scalp": "PivotScalp",
+    "pivotscalp": "PivotScalp",
+    "ema_rsi_scalp": "EMARSIScalp",
+    "emarsiscalp": "EMARSIScalp",
+    "ema_scalp": "EMARSIScalp",
+    "swing_ma": "SwingMACross",
+    "swing_ma_cross": "SwingMACross",
+    "swingmacross": "SwingMACross",
+    "swing_rsi": "SwingRSI",
+    "swingrsi": "SwingRSI",
+    "fib": "FibPullback",
+    "fib_pullback": "FibPullback",
+    "fibpullback": "FibPullback",
+    "bb_squeeze": "BBSqueeze",
+    "bbsqueeze": "BBSqueeze",
+    "squeeze": "BBSqueeze",
+    "premium_discount": "PremiumDiscount",
+    "premiumdiscount": "PremiumDiscount",
+    "premium": "PremiumDiscount",
+    "discount": "PremiumDiscount",
+    "ema_rsi_macd_day": "EMARSIMACDDay",
+    "emarsimacdday": "EMARSIMACDDay",
+    "emarsi_macd": "EMARSIMACDDay",
+    "martin": "MartinEMAPullback",
+    "martin_ema": "MartinEMAPullback",
+    "martin_ema_pullback": "MartinEMAPullback",
+    "martinemapullback": "MartinEMAPullback",
+    "vwap_ema9": "VWAPEMA9",
+    "vwapema9": "VWAPEMA9",
+    "vwap": "VWAPEMA9",
+    "vwap_ema": "VWAPEMA9",
+}
+
+
+def normalize_strategy_name(name: str) -> Optional[str]:
+    if not name:
+        return None
+    n = str(name).strip()
+    if n in STRATEGY_MAP:
+        return n
+    return STRATEGY_ALIASES.get(n.lower())
+
+
+def get_all_strategies(
+    params: dict = None,
+    enabled: Optional[List[str]] = None,
+    strategy_params: Optional[Dict[str, dict]] = None,
+) -> List[BaseStrategy]:
+    params = params or {}
+    strategy_params = strategy_params or {}
+
+    if enabled is None:
+        names = list(STRATEGY_MAP.keys())
+    else:
+        names = []
+        for raw in enabled:
+            canon = normalize_strategy_name(raw)
+            if canon and canon not in names:
+                names.append(canon)
+
+    strategies = []
+    for name in names:
+        cls = STRATEGY_MAP.get(name)
+        if not cls:
+            continue
+        p = dict(params)
+        p.update(strategy_params.get(name, {}))
+        strategies.append(cls(p))
+    return strategies
+
+
+def list_strategy_names() -> List[str]:
+    return list(STRATEGY_MAP.keys())
