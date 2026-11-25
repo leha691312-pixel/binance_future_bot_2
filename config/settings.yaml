@@ -1,23 +1,30 @@
-# Sàn volume tối thiểu khi rank biến động 24h (USDT)
-min_quote_volume_top: 500000
 # ====================== BOT SETTINGS ======================
+# mode: paper | testnet | live
 mode: testnet
-exchange: binanceusdm
 
-# isolated | cross
+# Symbols: top N by 24h volatility (not volume)
+top_n: 50
+min_quote_volume_top: 500000
+
+# Timeframes (5m/15m → scalp, 1h/2h → day, 4h+ → swing)
+timeframes:
+  - "5m"
+  - "15m"
+  - "1h"
+  - "4h"
+
+scan_interval_seconds: 120
+scan_parallel: true
+scan_workers: 4
+
+# Margin: isolated | cross
 margin_mode: cross
 
-top_n: 50
-scan_interval_seconds: 120
-
-# Quét song song (nhanh hơn với top_n lớn)
-scan_parallel: true
-scan_workers: 8
-
-# Symbol không quét (blacklist). VD: BTC, DOGE/USDT:USDT
+# Blacklist (Discord: !exclude add SYMBOL)
 excluded_symbols: []
-timeframes: ["15m", "1h", "4h"]
 
+# ====================== STRATEGIES ======================
+# Gợi ý sau backtest (edge rõ). Bật thêm bằng Discord !strategy on NAME
 enabled_strategies:
   - VWAPEMA9
   - FibPullback
@@ -25,138 +32,181 @@ enabled_strategies:
   - SupplyDemand
   - EMARSIMACDDay
 
+# ====================== STRATEGY PARAMS (tuned) ======================
 strategy_params:
   VWAPEMA9:
-    enable_long: false
-    enable_short: true
+    ema_period: 9
+    use_daily_vwap: true
+    vwap_window: 48
+    touch_pct: 0.0015
+    pullback_lookback: 4
     rr: 1.2
     min_rr: 1.0
     sl_buffer_atr: 0.45
-    touch_pct: 0.0015
-    pullback_lookback: 4
+    sl_swing_lookback: 10
+    min_atr_pct: 0.0012
     require_vwap_side: true
-    # BT: n=116 WR=59.5% meanR=0.238 totalR=27.6 PF=1.56 score=27.1
+    enable_long: false
+    enable_short: true
+
   FibPullback:
     rr: 1.2
     min_rr: 1.0
     atr_sl_mult: 1.4
-    # BT: n=86 WR=80.2% meanR=0.302 totalR=26.0 PF=2.51 score=25.8
+    lookback: 50
+
   MartinEMAPullback:
+    ema_fast: 9
+    ema_mid: 21
+    ema_slow: 50
     rr: 1.2
-    # BT: n=194 WR=44.8% meanR=0.122 totalR=23.7 PF=1.2 score=22.8
+    min_rr: 1.0
+    enable_long_9: true
+    enable_long_21: true
+    enable_long_50: true
+    enable_short_9: true
+    enable_short_21: true
+    enable_short_50: true
+
   SupplyDemand:
     rr: 1.5
-    min_rr: 1.2
     atr_sl_mult: 1.6
-    # BT: n=156 WR=46.8% meanR=0.056 totalR=8.8 PF=1.1 score=7.6
+    lookback: 40
+
   EMARSIMACDDay:
-    rr: 1.5
-    min_rr: 1.3
-    # BT: n=10 WR=60.0% meanR=0.374 totalR=3.7 PF=1.87 score=3.6
-  TrendMA:
-    rr: 1.5
-    min_rr: 1.2
-    atr_sl_mult: 1.6
-    # BT: n=213 WR=46.5% meanR=0.012 totalR=2.6 PF=1.02 score=1.1
-  PullbackEMA:
-    rr: 1.2
-    min_rr: 1.0
-    atr_sl_mult: 1.4
-    # BT: n=76 WR=53.9% meanR=0.02 totalR=1.5 PF=1.04 score=0.8
-  StochBB:
+    ema_fast: 21
+    ema_mid: 50
+    ema_slow: 200
+    rsi_period: 14
+    macd_fast: 12
+    macd_slow: 26
+    macd_signal: 9
     rr: 1.5
     min_rr: 1.2
-    atr_sl_mult: 1.6
-    # BT: n=28 WR=60.7% meanR=-0.059 totalR=-1.6 PF=0.86 score=-2.1
-  SwingMACross:
-    rr: 1.2
-    min_rr: 1.0
-    atr_sl_mult: 1.4
-    # BT: n=24 WR=50.0% meanR=-0.074 totalR=-1.8 PF=0.86 score=-2.3
-  OrderBlock:
-    rr: 1.2
-    min_rr: 1.0
-    atr_sl_mult: 1.4
-    # BT: n=20 WR=45.0% meanR=-0.201 totalR=-4.0 PF=0.68 score=-4.4
-  SwingRSI:
-    rr: 1.5
-    min_rr: 1.2
-    atr_sl_mult: 1.6
-    # BT: n=178 WR=43.8% meanR=-0.035 totalR=-6.2 PF=0.94 score=-7.6
-  BBSqueeze:
-    rr: 1.2
-    min_rr: 1.0
-    atr_sl_mult: 1.4
-    # BT: n=53 WR=39.6% meanR=-0.243 totalR=-12.9 PF=0.64 score=-14.0
-  MomentumRSI:
-    rr: 1.2
-    min_rr: 1.0
-    atr_sl_mult: 1.4
-    # BT: n=73 WR=43.8% meanR=-0.206 totalR=-15.0 PF=0.68 score=-16.5
-  EMARSIScalp:
-    rr: 1.2
-    min_rr: 1.0
-    atr_sl_mult: 1.4
-    # BT: n=77 WR=42.9% meanR=-0.23 totalR=-17.7 PF=0.64 score=-19.9
-  FVG:
-    rr: 1.5
-    min_rr: 1.2
-    atr_sl_mult: 1.6
-    # BT: n=238 WR=44.1% meanR=-0.074 totalR=-17.6 PF=0.88 score=-20.0
-  MARibbon:
-    rr: 1.5
-    min_rr: 1.2
-    atr_sl_mult: 1.6
-    # BT: n=236 WR=41.5% meanR=-0.103 totalR=-24.3 PF=0.84 score=-27.1
-  PivotScalp:
-    rr: 1.5
-    min_rr: 1.2
-    atr_sl_mult: 1.6
-    # BT: n=180 WR=38.3% meanR=-0.208 totalR=-37.4 PF=0.7 score=-40.7
-  PremiumDiscount:
-    rr: 1.3
-    atr_sl_mult: 1.6
-    # BT: n=225 WR=22.7% meanR=-0.356 totalR=-80.1 PF=0.58 score=-86.7
+    pullback_lookback: 5
+    sl_swing_lookback: 10
+    sl_buffer_atr: 0.4
+
+  # Defaults for other strategies (if enabled later)
   ORB:
-    rr: 1.3
-    atr_sl_mult: 1.5
-    # insufficient trades in sample – conservative
+    rr: 1.25
+    atr_sl_mult: 1.35
   LiquiditySweep:
+    rr: 1.25
+    atr_sl_mult: 1.4
+  MARibbon:
+    rr: 1.25
+    atr_sl_mult: 1.35
+  StochBB:
+    rr: 1.25
+    atr_sl_mult: 1.4
+  PivotScalp:
+    rr: 1.25
+    atr_sl_mult: 1.35
+  EMARSIScalp:
+    rr: 1.25
+    atr_sl_mult: 1.4
+  OrderBlock:
     rr: 1.3
-    atr_sl_mult: 1.5
-    # insufficient trades in sample – conservative
-  RangeBounce:
+    atr_sl_mult: 1.6
+  FVG:
     rr: 1.3
-    atr_sl_mult: 1.5
-    # insufficient trades in sample – conservative
+    atr_sl_mult: 1.6
   BOS_CHOCH:
-    rr: 1.2
-    swing_lookback: 5
-    # insufficient trades in sample – conservative
-    
-# --- Làm sạch signal: consensus + HTF ---
+    rr: 1.3
+    atr_sl_mult: 1.7
+  TrendMA:
+    rr: 1.3
+    atr_sl_mult: 1.7
+  MomentumRSI:
+    rr: 1.3
+    atr_sl_mult: 1.6
+  PullbackEMA:
+    rr: 1.3
+    atr_sl_mult: 1.6
+  RangeBounce:
+    rr: 1.25
+    atr_sl_mult: 1.5
+  PremiumDiscount:
+    lookback: 50
+    discount_max: 0.35
+    premium_min: 0.65
+    rr: 1.3
+    require_rejection: true
+  OI_Funding:
+    rr: 1.4
+    atr_sl_mult: 2.2
+  SwingMACross:
+    rr: 1.4
+    atr_sl_mult: 2.2
+  SwingRSI:
+    rr: 1.4
+    atr_sl_mult: 2.2
+  BBSqueeze:
+    rr: 1.35
+    atr_sl_mult: 2.0
+
+# ====================== SIGNAL REFINE ======================
+# Với 5 strategy: tắt bias+trigger & consensus chặt; giữ HTF tùy chọn
 signal_refine:
-  consensus_enabled: true
-  min_strategy_agree: 1          # cần ≥ 2 strategy cùng symbol+side
-  consensus_same_style: false    # true = chỉ đếm trong cùng scalp/day/swing
-  bias_trigger_enabled: false    # true = cần bias + trigger (siết hơn)
-  htf_bias_enabled: false
+  consensus_enabled: false
+  min_strategy_agree: 1
+  consensus_same_style: false
+  bias_trigger_enabled: false
+
+  htf_bias_enabled: true
   htf_timeframe: "1h"
   htf_ema_fast: 21
   htf_ema_slow: 50
 
-# ML
+  mtf_enabled: false
+  mtf_timeframes:
+    - "1h"
+    - "4h"
+  mtf_require_all_align: false
+  mtf_min_align: 1
+
+  killzone_enabled: false
+  killzone_mode: filter
+  killzone_inside_conf_boost: 0.05
+  killzone_outside_conf_mult: 0.7
+  killzones:
+    asia:
+      start: "00:00"
+      end: "09:00"
+      enabled: false
+    london:
+      start: "07:00"
+      end: "10:00"
+      enabled: true
+    ny_am:
+      start: "12:00"
+      end: "15:00"
+      enabled: true
+    ny_pm:
+      start: "15:00"
+      end: "18:00"
+      enabled: false
+    london_close:
+      start: "15:00"
+      end: "17:00"
+      enabled: false
+
+# ====================== ML ======================
 ml_model_path: data/models/signal_filter.joblib
 ml_filter_enabled: true
 ml_collect_only: true
+ml_prob_threshold: 0.55
 ml_min_samples: 80
+ml_min_auc_deploy: 0.55
 ml_retrain_every_new: 25
 ml_retrain_hours: 12
-ml_min_auc_deploy: 0.55
-ml_min_class_count: 20
+ml_min_class_count: 10
 ml_min_r_multiple: 0.25
-ml_prob_threshold: 0.55
 ml_fee_rate: 0.0004
+ml_per_style: false
+ml_min_samples_per_style: 40
 
+# ====================== LOG ======================
 log_file: logs/bot.log
 log_level: INFO
