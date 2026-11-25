@@ -1,4 +1,9 @@
+"""Strategy registry – full map for binance futures bot."""
 from typing import List, Optional, Dict, Any
+
+from .base import BaseStrategy
+
+# Core SMC / original
 from .orb import ORBStrategy
 from .liquidity_sweep import LiquiditySweepStrategy
 from .order_block import OrderBlockStrategy
@@ -6,21 +11,44 @@ from .supply_demand import SupplyDemandStrategy
 from .fvg import FVGStrategy
 from .bos_choch import BOSCHOCHStrategy
 from .oi_funding import OIFundingStrategy
+
+# Sarwa-style day
 from .trend_ma import TrendMAStrategy
 from .momentum_rsi import MomentumRSIStrategy
 from .pullback_ema import PullbackEMAStrategy
 from .range_bounce import RangeBounceStrategy
+
+# Scalp
 from .ma_ribbon import MARibbonStrategy
 from .stoch_bb import StochBBStrategy
 from .pivot_scalp import PivotScalpStrategy
 from .ema_rsi_scalp import EMARSIScalpStrategy
+
+# Swing
 from .swing_ma_cross import SwingMACrossStrategy
 from .swing_rsi import SwingRSIStrategy
 from .fib_pullback import FibPullbackStrategy
 from .bb_squeeze import BBSqueezeStrategy
+
+# ICT / day extras
 from .premium_discount import PremiumDiscountStrategy
-from .ema_rsi_macd_day import EMARSIMACDDayStrategy
-from .base import BaseStrategy
+
+# Optional – import an toàn nếu file chưa có trên máy
+try:
+    from .ema_rsi_macd_day import EMARSIMACDDayStrategy
+except Exception:
+    EMARSIMACDDayStrategy = None
+
+try:
+    from .martin_ema_pullback import MartinEMAPullbackStrategy
+except Exception:
+    MartinEMAPullbackStrategy = None
+
+try:
+    from .vwap_ema9 import VWAPEMA9Strategy
+except Exception:
+    VWAPEMA9Strategy = None
+
 
 STRATEGY_MAP = {
     "ORB": ORBStrategy,
@@ -38,14 +66,20 @@ STRATEGY_MAP = {
     "StochBB": StochBBStrategy,
     "PivotScalp": PivotScalpStrategy,
     "EMARSIScalp": EMARSIScalpStrategy,
-    # Strike.money swing
     "SwingMACross": SwingMACrossStrategy,
     "SwingRSI": SwingRSIStrategy,
     "FibPullback": FibPullbackStrategy,
     "BBSqueeze": BBSqueezeStrategy,
     "PremiumDiscount": PremiumDiscountStrategy,
-    "EMARSIMACDDay": EMARSIMACDDayStrategy,
 }
+
+if EMARSIMACDDayStrategy is not None:
+    STRATEGY_MAP["EMARSIMACDDay"] = EMARSIMACDDayStrategy
+if MartinEMAPullbackStrategy is not None:
+    STRATEGY_MAP["MartinEMAPullback"] = MartinEMAPullbackStrategy
+if VWAPEMA9Strategy is not None:
+    STRATEGY_MAP["VWAPEMA9"] = VWAPEMA9Strategy
+
 
 STRATEGY_ALIASES = {
     "orb": "ORB",
@@ -100,11 +134,22 @@ STRATEGY_ALIASES = {
     "fibpullback": "FibPullback",
     "bb_squeeze": "BBSqueeze",
     "bbsqueeze": "BBSqueeze",
+    "squeeze": "BBSqueeze",
     "premium_discount": "PremiumDiscount",
     "premiumdiscount": "PremiumDiscount",
     "premium": "PremiumDiscount",
     "discount": "PremiumDiscount",
-    "squeeze": "BBSqueeze",
+    "ema_rsi_macd_day": "EMARSIMACDDay",
+    "emarsimacdday": "EMARSIMACDDay",
+    "emarsi_macd": "EMARSIMACDDay",
+    "martin": "MartinEMAPullback",
+    "martin_ema": "MartinEMAPullback",
+    "martin_ema_pullback": "MartinEMAPullback",
+    "martinemapullback": "MartinEMAPullback",
+    "vwap_ema9": "VWAPEMA9",
+    "vwapema9": "VWAPEMA9",
+    "vwap": "VWAPEMA9",
+    "vwap_ema": "VWAPEMA9",
 }
 
 
