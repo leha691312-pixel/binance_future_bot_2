@@ -31,9 +31,46 @@ enabled_strategies:
   - MartinEMAPullback
   - SupplyDemand
   - EMARSIMACDDay
+  - LuxICTConfluence
+  - Supertrend
+
 
 # ====================== STRATEGY PARAMS (tuned) ======================
 strategy_params:
+  Supertrend:
+    # Tối ưu backtest (ETH/SOL/BTC · 15m/1h/4h): SHORT-only ATR14×3 RR1.5
+    # WR~42% meanR=+0.13 totalR=+34 PF~1.38 maxDD~-6.5
+    atr_period: 14
+    factor: 3.0
+    rr: 1.5
+    min_rr: 1.2
+    sl_buffer_atr: 0.15
+    min_atr_pct: 0.001
+    enable_long: true
+    enable_short: true
+    only_on_flip: true
+  LuxICTConfluence:
+    pivot_len: 3
+    msb_lookback: 40
+    msb_body_atr: 0.85
+    fvg_max_age: 30
+    min_gap_pct: 0.001
+    liq_lookback: 25
+    fib_low: 0.5
+    fib_high: 0.786
+    require_fib: false          # Fib OTE optional (strict hơn nếu true)
+    require_liq_sweep: true     # quét thanh khoản
+    require_fvg: true
+    require_ob: false
+    vol_mult: 1.15
+    vol_ma: 20
+    rr: 1.5
+    min_rr: 1.2
+    sl_buffer_atr: 0.35
+    enable_long: false          # LONG yếu trên sample → mặc định tắt
+    enable_short: true
+    min_score: 3
+
   VWAPEMA9:
     ema_period: 9
     use_daily_vwap: true
