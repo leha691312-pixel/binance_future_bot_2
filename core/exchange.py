@@ -138,12 +138,15 @@ class ExchangeWrapper:
         return sym
 
     def get_top_symbols(self, n: int = 20, quote: str = "USDT") -> List[str]:
+        """Top N theo |% biến động 24h|, lọc market TRADING + min quote volume."""
         default_pairs = [
             "BTC/USDT:USDT", "ETH/USDT:USDT", "BNB/USDT:USDT",
             "SOL/USDT:USDT", "XRP/USDT:USDT", "DOGE/USDT:USDT",
             "ADA/USDT:USDT", "AVAX/USDT:USDT", "LINK/USDT:USDT",
             "DOT/USDT:USDT",
         ]
+        min_qv = float(self.config.get("min_quote_volume_top", 500_000) or 500_000)
+
         markets: Dict[str, Any] = {}
         try:
             if self.mode == Mode.PAPER:
@@ -186,17 +189,6 @@ class ExchangeWrapper:
             except Exception as e2:
                 logger.warning(f"exchange fetch_tickers failed: {e2}")
 
-        # Rank by 24h volatility (abs % change), not volume.
-        # Optional min quote volume filters dead/illiquid coins.
-        min_quote_vol = 0.0
-        try:
-            # soft floor so ranking is not pure dust (USDT)
-            min_quote_vol = float(getattr(self, "min_quote_volume_top", 0) or 0)
-        except (TypeError, ValueError):
-            min_quote_vol = 0.0
-        if min_quote_vol <= 0:
-            min_quote_vol = 500_000.0  # default 500k USDT 24h quote volume
-
         ranked = []
         for sym, t in tickers.items():
             norm = self._normalize_symbol(sym, quote)
@@ -209,64 +201,45 @@ class ExchangeWrapper:
             )
             if not is_usdt:
                 continue
-
-            info = t.get("info") or {}
-            # --- 24h volatility score ---
-            pct = None
-            for key in ("percentage", "changePercent", "priceChangePercent"):
-                if t.get(key) is not None:
-                    try:
-                        pct = float(t.get(key))
-                        break
-                    except (TypeError, ValueError):
-                        pass
-            if pct is None and info.get("priceChangePercent") is not None:
-                try:
-                    pct = float(info.get("priceChangePercent"))
-                except (TypeError, ValueError):
-                    pct = None
-
-            range_pct = 0.0
             try:
-                last = float(t.get("last") or t.get("close") or info.get("lastPrice") or 0)
-                high = float(t.get("high") or info.get("highPrice") or 0)
-                low = float(t.get("low") or info.get("lowPrice") or 0)
-                if last > 0 and high > 0 and low > 0 and high >= low:
+                qv = float(t.get("quoteVolume") or t.get("baseVolume") or 0 or 0)
+            except (TypeError, ValueError):
+                qv = 0.0
+            if qv < min_qv:
+                continue
+            # 24h volatility score
+            pct = t.get("percentage")
+            if pct is None:
+                info = t.get("info") or {}
+                pct = info.get("priceChangePercent") or info.get("priceChange") or 0
+            try:
+                pct_f = abs(float(pct or 0))
+            except (TypeError, ValueError):
+                pct_f = 0.0
+            try:
+                last = float(t.get("last") or t.get("close") or 0 or 0)
+                high = float(t.get("high") or 0 or 0)
+                low = float(t.get("low") or 0 or 0)
+                if last > 0 and high > low:
                     range_pct = (high - low) / last * 100.0
+                    pct_f = max(pct_f, range_pct * 0.5)
             except (TypeError, ValueError):
-                range_pct = 0.0
-
-            if pct is not None:
-                vol_score = abs(float(pct))
-                # blend a bit of high-low range so coins with big wick still rank up
-                vol_score = max(vol_score, range_pct * 0.5)
-            else:
-                vol_score = range_pct
-
-            if vol_score <= 0:
+                pass
+            if pct_f <= 0:
                 continue
+            ranked.append((norm, pct_f, qv))
 
-            try:
-                qvol = float(t.get("quoteVolume") or info.get("quoteVolume") or 0)
-            except (TypeError, ValueError):
-                qvol = 0.0
-            if qvol < min_quote_vol:
-                continue
-
-            ranked.append((norm, vol_score, qvol))
-
-        # sort: higher |24h %| first; tie-break by quote volume
         ranked.sort(key=lambda x: (x[1], x[2]), reverse=True)
         seen = set()
         result = []
-        top_preview = []
-        for s, score, qvol in ranked:
+        head = []
+        for s, pct_f, _qv in ranked:
             if s in seen:
                 continue
             seen.add(s)
             result.append(s)
-            if len(top_preview) < 5:
-                top_preview.append(f"{s.split('/')[0]}={score:.1f}%")
+            if len(head) < 5:
+                head.append(f"{s.split('/')[0]}={pct_f:.1f}%")
             if len(result) >= n:
                 break
 
@@ -287,10 +260,10 @@ class ExchangeWrapper:
 
         logger.info(
             f"Top symbols by 24h volatility ({self.mode.value}): {len(result)}/{n} "
-            f"(tradable={len(tradable)}, min_qvol={min_quote_vol:.0f}) "
-            f"head=[{', '.join(top_preview)}]"
+            f"(tradable_markets={len(tradable)}) head=[{', '.join(head)}]"
         )
         return result[:n]
+
 
     def get_balance(self) -> float:
         if self.mode == Mode.PAPER:
@@ -445,7 +418,90 @@ class ExchangeWrapper:
             pass
         return symbol.replace("/", "").replace(":USDT", "").replace(":USDC", "")
 
+    def _fapi(self, path: str, method: str = "GET", params: dict = None):
+        params = params or {}
+        if not self.exchange:
+            return None
+        try:
+            return self.exchange.request(path, "fapiPrivate", method, params)
+        except Exception as e:
+            logger.debug(f"fapi {method} {path}: {e}")
+            return None
+
+    def _algo_id_to_ccxt_symbol(self, market_id: str) -> str:
+        if not market_id:
+            return market_id
+        try:
+            by_id = getattr(self.exchange, "markets_by_id", None) or {}
+            if market_id in by_id:
+                return by_id[market_id]["symbol"]
+        except Exception:
+            pass
+        if market_id.endswith("USDT") and "/" not in market_id:
+            base = market_id[:-4]
+            return f"{base}/USDT:USDT"
+        return market_id
+
+
+    def _norm_sym(self, s: str) -> str:
+        if not s:
+            return ""
+        x = str(s).upper().replace(" ", "")
+        for a, b in [(":USDT", ""), ("/USDT", "USDT"), ("/", ""), (":", "")]:
+            x = x.replace(a, b)
+        return x
+
+    def _cancel_algo_conditional(self, symbol: str) -> int:
+        """Hủy STOP/TP conditional (algo) trên Binance USD-M."""
+        mid = self._market_id(symbol)
+        n = 0
+        key = self._norm_sym(symbol)
+        mid_key = self._norm_sym(mid)
+
+        algos = []
+        for params in ({"symbol": mid}, {}):
+            raw = self._fapi("openAlgoOrders", "GET", params)
+            if raw is None:
+                continue
+            if isinstance(raw, dict):
+                raw = raw.get("orders") or raw.get("data") or raw.get("list") or []
+            if isinstance(raw, list):
+                algos.extend(raw)
+
+        seen = set()
+        for a in algos:
+            try:
+                a_sym = str(a.get("symbol") or "")
+                a_key = self._norm_sym(a_sym)
+                if a_key and a_key != key and a_key != mid_key and key not in a_key and a_key not in key:
+                    continue
+                algo_id = a.get("algoId") or a.get("algo_id") or a.get("clientAlgoId")
+                if algo_id is None or algo_id in seen:
+                    continue
+                seen.add(algo_id)
+                ok = self._fapi("algoOrder", "DELETE", {"algoId": algo_id})
+                if ok is None:
+                    self._fapi("algoOrder", "DELETE", {"algoId": str(algo_id), "symbol": mid})
+                n += 1
+                logger.info(
+                    f"Canceled algo/conditional {algo_id} on {symbol} "
+                    f"({a.get('orderType') or a.get('type')})"
+                )
+            except Exception as e:
+                logger.warning(f"cancel algo item {symbol}: {e}")
+
+        for path in ("algoOpenOrders", "allOpenOrders", "openOrders"):
+            try:
+                r = self._fapi(path, "DELETE", {"symbol": mid})
+                if r is not None:
+                    n += 1
+                    logger.info(f"Bulk DELETE {path} OK {symbol}")
+            except Exception as e:
+                logger.debug(f"bulk {path}: {e}")
+        return n
+
     def cancel_all_orders(self, symbol: str = None) -> int:
+        """Hủy lệnh thường + STOP/TP conditional. Gọi sau TP hit / timeout / orphan."""
         if self.mode == Mode.PAPER:
             if symbol:
                 to_del = [k for k, o in self.paper_orders.items() if o.get("symbol") == symbol]
@@ -455,12 +511,26 @@ class ExchangeWrapper:
             n = len(self.paper_orders)
             self.paper_orders.clear()
             return n
+
         cancelled = 0
-        symbols = [symbol] if symbol else []
+        symbols: List[str] = [symbol] if symbol else []
         if not symbols:
             try:
                 open_orders = self.exchange.fetch_open_orders() or []
                 symbols = list({o.get("symbol") for o in open_orders if o.get("symbol")})
+            except Exception:
+                pass
+            try:
+                algos = self._fapi("openAlgoOrders", "GET", {}) or []
+                if isinstance(algos, dict):
+                    algos = algos.get("orders") or algos.get("data") or []
+                for a in algos or []:
+                    s = a.get("symbol")
+                    if not s:
+                        continue
+                    s = self._algo_id_to_ccxt_symbol(s)
+                    if s not in symbols:
+                        symbols.append(s)
             except Exception:
                 pass
             try:
@@ -469,6 +539,7 @@ class ExchangeWrapper:
                         symbols.append(p.symbol)
             except Exception:
                 pass
+
         for sym in symbols:
             if not sym:
                 continue
@@ -478,95 +549,129 @@ class ExchangeWrapper:
                 logger.info(f"cancel_all_orders OK: {sym}")
             except Exception as e:
                 logger.debug(f"cancel_all_orders {sym}: {e}")
+
+            try:
+                for o in self.exchange.fetch_open_orders(sym) or []:
+                    oid = o.get("id")
+                    if not oid:
+                        continue
+                    try:
+                        self.exchange.cancel_order(oid, sym)
+                        cancelled += 1
+                    except Exception as e:
+                        logger.debug(f"cancel_order {sym} {oid}: {e}")
+            except Exception as e:
+                logger.debug(f"fetch_open_orders {sym}: {e}")
+
+            try:
+                cancelled += self._cancel_algo_conditional(sym) or 0
+            except Exception as e:
+                logger.warning(f"_cancel_algo_conditional {sym}: {e}")
+
+            mid = self._market_id(sym)
+            try:
+                if hasattr(self.exchange, "fapiPrivateDeleteAllOpenOrders"):
+                    self.exchange.fapiPrivateDeleteAllOpenOrders({"symbol": mid})
+                    cancelled += 1
+            except Exception as e:
+                logger.debug(f"fapiPrivateDeleteAllOpenOrders {sym}: {e}")
+
+            # Second pass – STOP algo đôi khi còn sau TP vừa khớp
+            try:
+                time.sleep(0.35)
+                cancelled += self._cancel_algo_conditional(sym) or 0
+            except Exception:
+                pass
+
         return cancelled
 
+    def cancel_protective_orders(self, symbol: str) -> int:
+        """Alias: hủy TP LIMIT + SL STOP (thường + conditional)."""
+        return self.cancel_all_orders(symbol)
+
     def cleanup_orphan_orders(self, extra_symbols: List[str] = None) -> int:
+        """Symbol không còn position nhưng còn lệnh → hủy hết (kể cả STOP algo)."""
         if self.mode == Mode.PAPER:
             return 0
         try:
-            pos_symbols = {p.symbol for p in self.get_positions()}
+            pos_keys = {
+                self._norm_sym(p.symbol)
+                for p in self.get_positions()
+                if abs(float(p.size or 0)) > 0
+            }
         except Exception as e:
-            logger.warning(f"cleanup get_positions: {e}")
+            logger.warning(f"cleanup_orphan_orders get_positions: {e}")
             return 0
-        order_symbols = set()
+
+        order_symbols = set(extra_symbols or [])
         try:
             for o in self.exchange.fetch_open_orders() or []:
                 if o.get("symbol"):
                     order_symbols.add(o["symbol"])
         except Exception as e:
             logger.debug(f"cleanup fetch_open_orders: {e}")
-        if extra_symbols:
-            order_symbols.update(extra_symbols)
-        orphans = [s for s in order_symbols if s not in pos_symbols]
+
+        try:
+            algos = self._fapi("openAlgoOrders", "GET", {}) or []
+            if isinstance(algos, dict):
+                algos = algos.get("orders") or algos.get("data") or []
+            for a in algos or []:
+                s = a.get("symbol")
+                if not s:
+                    continue
+                order_symbols.add(self._algo_id_to_ccxt_symbol(s))
+        except Exception as e:
+            logger.debug(f"cleanup openAlgoOrders: {e}")
+
+        orphans = [s for s in order_symbols if self._norm_sym(s) not in pos_keys]
         total = 0
         for sym in orphans:
-            logger.warning(f"Orphan orders on {sym} (no position) → cancel all")
+            logger.warning(f"Orphan orders on {sym} (no position) → cancel all (incl. STOP_MARKET)")
             total += self.cancel_all_orders(sym) or 0
         if orphans:
-            logger.info(f"Cleaned orphan orders on {len(orphans)} symbol(s)")
+            logger.info(f"Cleaned orphan SL/TP on {len(orphans)} symbol(s), ops~={total}")
         return total
 
     def close_position(self, symbol: str, side: Side):
-        """Đóng vị thế market + reduceOnly (tránh -4164 min notional khi size nhỏ)."""
+        """Timeout/reverse: hủy SL/TP → market reduceOnly → hủy lại SL/TP."""
         try:
             self.cancel_all_orders(symbol)
-            logger.info(f"Pre-close cancel protective orders: {symbol}")
+            logger.info(f"Pre-close cancel TP/SL: {symbol}")
         except Exception as e:
             logger.warning(f"Pre-close cancel failed {symbol}: {e}")
 
         order = None
-        # Chuẩn hóa side để so khớp
-        side_val = side.value if hasattr(side, "value") else str(side)
-        side_u = str(side_val).upper()
-        want_long = side_u in ("LONG", "BUY")
-
-        for p in self.get_positions():
-            ps = p.side.value if hasattr(p.side, "value") else str(p.side)
-            ps_u = str(ps).upper()
-            is_long = ps_u in ("LONG", "BUY")
-            if p.symbol != symbol:
-                continue
-            if is_long != want_long:
-                continue
-            qty = abs(float(p.size or 0))
-            if qty <= 0:
-                continue
-            close_side = "sell" if is_long else "buy"
-            try:
-                order = self.create_order(
-                    symbol,
-                    close_side,
-                    qty,
-                    order_type="market",
-                    params={"reduceOnly": True},
-                )
-                logger.info(f"Close position {symbol} {ps_u} qty={qty} reduceOnly OK")
-            except Exception as e:
-                err = str(e)
-                logger.warning(f"Close reduceOnly failed {symbol}: {e} → retry plain market")
-                # Fallback: vẫn cố reduceOnly qua raw params / closePosition
-                try:
-                    if self.mode != Mode.PAPER and self.exchange:
-                        order = self.exchange.create_order(
+        try:
+            positions = self.get_positions()
+            for p in positions:
+                if p.symbol == symbol and p.side == side:
+                    close_side = "sell" if side == Side.LONG else "buy"
+                    try:
+                        order = self.create_order(
                             symbol,
-                            type="market",
-                            side=close_side,
-                            amount=qty,
+                            close_side,
+                            p.size,
+                            order_type="market",
                             params={"reduceOnly": True},
                         )
-                        logger.info(f"Close position retry OK {symbol}")
-                    else:
-                        raise
-                except Exception as e2:
-                    logger.error(f"Close position failed {symbol}: {e2}")
-                    raise
-            break
+                    except TypeError:
+                        order = self.create_order(symbol, close_side, p.size, order_type="market")
+                    break
+        except Exception as e:
+            logger.error(f"close_position market failed {symbol}: {e}")
 
+        time.sleep(0.4)
         try:
             self.cancel_all_orders(symbol)
-            logger.info(f"Post-close cancel protective orders: {symbol}")
+            logger.info(f"Post-close cancel TP/SL: {symbol}")
         except Exception as e:
             logger.warning(f"Post-close cancel failed {symbol}: {e}")
+
+        try:
+            time.sleep(0.6)
+            self.cancel_all_orders(symbol)
+        except Exception:
+            pass
         return order
 
     def flatten_all(self):
