@@ -309,6 +309,146 @@ def _format_excluded_msg() -> str:
 
 
 
+
+# ========== Timeframes (quét) ==========
+ALLOWED_TIMEFRAMES = [
+    "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d",
+]
+
+
+def _normalize_tf(tf: str) -> str:
+    if not tf:
+        return ""
+    t = str(tf).strip().lower().replace(" ", "")
+    aliases = {
+        "1": "1m", "3": "3m", "5": "5m", "15": "15m", "30": "30m",
+        "60": "1h", "120": "2h", "240": "4h",
+        "1min": "1m", "5min": "5m", "15min": "15m", "30min": "30m",
+        "1hour": "1h", "4hour": "4h", "1day": "1d", "d": "1d",
+    }
+    t = aliases.get(t, t)
+    return t if t in ALLOWED_TIMEFRAMES else ""
+
+
+def _get_timeframes() -> list:
+    st = control_state
+    raw = st.settings.get("timeframes")
+    if not raw and getattr(st, "scanner", None) is not None:
+        raw = getattr(st.scanner, "timeframes", None)
+    out, seen = [], set()
+    for x in (raw or ["15m", "1h"]):
+        n = _normalize_tf(str(x))
+        if n and n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out or ["15m", "1h"]
+
+
+def _persist_timeframes(tfs: list) -> list:
+    st = control_state
+    cleaned, seen = [], set()
+    for x in tfs:
+        n = _normalize_tf(str(x))
+        if n and n not in seen:
+            seen.add(n)
+            cleaned.append(n)
+    order = {t: i for i, t in enumerate(ALLOWED_TIMEFRAMES)}
+    cleaned.sort(key=lambda t: order.get(t, 99))
+    if not cleaned:
+        cleaned = ["15m", "1h"]
+    st.settings["timeframes"] = cleaned
+    _save_settings_yaml(st.settings)
+    sc = getattr(st, "scanner", None)
+    if sc is not None:
+        try:
+            sc.timeframes = list(cleaned)
+            logger.info(f"Scanner timeframes updated: {cleaned}")
+        except Exception as e:
+            logger.warning(f"Apply scanner.timeframes: {e}")
+    return cleaned
+
+
+def _format_timeframes_msg() -> str:
+    active = _get_timeframes()
+    off = [t for t in ALLOWED_TIMEFRAMES if t not in active]
+    lines_on = ", ".join(f"`{t}`" for t in active) or "_(trống)_"
+    lines_off = ", ".join(f"`{t}`" for t in off) or "_(không)_"
+    return (
+        f"⏱ **Timeframe quét**\n"
+        f"**Đang bật ({len(active)}):** {lines_on}\n"
+        f"**Tắt:** {lines_off}\n"
+        f"Nút / dropdown bên dưới, hoặc `!tf add 5m` · `!tf remove 4h`"
+    )
+
+
+def _tf_add(names: list) -> str:
+    cur = _get_timeframes()
+    added, bad = [], []
+    for n in names:
+        t = _normalize_tf(n)
+        if not t:
+            bad.append(str(n))
+            continue
+        if t not in cur:
+            cur.append(t)
+            added.append(t)
+    _persist_timeframes(cur)
+    parts = []
+    if added:
+        parts.append("✅ Đã **thêm** TF: " + ", ".join(f"`{x}`" for x in added))
+    else:
+        parts.append("ℹ️ Không TF mới (đã có hoặc không hợp lệ).")
+    if bad:
+        parts.append(
+            "⚠️ Không nhận: " + ", ".join(bad) + " — chỉ: " + ", ".join(ALLOWED_TIMEFRAMES)
+        )
+    parts.append(_format_timeframes_msg())
+    return "\n".join(parts)
+
+
+def _tf_remove(names: list) -> str:
+    cur = set(_get_timeframes())
+    removed, bad = [], []
+    for n in names:
+        t = _normalize_tf(n)
+        if not t:
+            bad.append(str(n))
+            continue
+        if t in cur:
+            cur.discard(t)
+            removed.append(t)
+    if not cur:
+        return "❌ Không thể xóa hết TF — giữ ít nhất 1 khung (vd `15m`)."
+    _persist_timeframes(list(cur))
+    parts = []
+    if removed:
+        parts.append("✅ Đã **tắt** TF: " + ", ".join(f"`{x}`" for x in removed))
+    else:
+        parts.append("ℹ️ Không TF nào bị tắt.")
+    if bad:
+        parts.append("⚠️ Không nhận: " + ", ".join(bad))
+    parts.append(_format_timeframes_msg())
+    return "\n".join(parts)
+
+
+def _tf_set(names: list) -> str:
+    cleaned, bad = [], []
+    for n in names:
+        t = _normalize_tf(n)
+        if not t:
+            bad.append(str(n))
+        else:
+            cleaned.append(t)
+    if not cleaned:
+        return "❌ Cần ít nhất 1 TF hợp lệ. VD: `!tf set 5m 15m 1h`"
+    _persist_timeframes(cleaned)
+    msg = "✅ **Đặt TF:** " + ", ".join(f"`{x}`" for x in _get_timeframes())
+    if bad:
+        msg += "\n⚠️ Bỏ qua: " + ", ".join(bad)
+    return msg + "\n" + _format_timeframes_msg()
+
+
+
 # Strategy names known to bot (fallback if import fails)
 _KNOWN_STRATEGIES = [
     "ORB", "LiquiditySweep", "MARibbon", "StochBB", "PivotScalp", "EMARSIScalp",
@@ -1409,6 +1549,105 @@ if HAS_DISCORD:
             )
             await interaction.response.send_message(embed=emb, ephemeral=True)
 
+
+    class TFEnableSelect(discord.ui.Select):
+        def __init__(self):
+            active = set(_get_timeframes())
+            opts = []
+            for t in ALLOWED_TIMEFRAMES:
+                if t in active:
+                    continue
+                opts.append(
+                    discord.SelectOption(
+                        label=t, value=t, description="Bật quét khung này"
+                    )
+                )
+            if not opts:
+                opts = [
+                    discord.SelectOption(
+                        label="(Đã bật hết)", value="_none", description="Không còn TF"
+                    )
+                ]
+            super().__init__(
+                placeholder="➕ Bật timeframe…",
+                min_values=1,
+                max_values=min(len(opts), 5),
+                options=opts[:25],
+                row=1,
+            )
+
+        async def callback(self, interaction: discord.Interaction):
+            if not await _check_interaction(interaction):
+                return
+            vals = [v for v in self.values if v != "_none"]
+            msg = _tf_add(vals) if vals else "Không có TF mới."
+            await interaction.response.edit_message(content=msg[:1900], view=TFPanelView())
+
+    class TFDisableSelect(discord.ui.Select):
+        def __init__(self):
+            active = _get_timeframes()
+            opts = [
+                discord.SelectOption(label=t, value=t, description="Tắt khung này")
+                for t in active
+            ] or [
+                discord.SelectOption(label="(Trống)", value="_none", description="—")
+            ]
+            super().__init__(
+                placeholder="➖ Tắt timeframe…",
+                min_values=1,
+                max_values=min(max(len(opts), 1), 5),
+                options=opts[:25],
+                row=2,
+            )
+
+        async def callback(self, interaction: discord.Interaction):
+            if not await _check_interaction(interaction):
+                return
+            vals = [v for v in self.values if v != "_none"]
+            msg = _tf_remove(vals) if vals else "Không có TF để tắt."
+            await interaction.response.edit_message(content=msg[:1900], view=TFPanelView())
+
+    class TFPanelView(discord.ui.View):
+        """row0: 4 nút | row1: Select bật | row2: Select tắt — không tràn."""
+
+        def __init__(self):
+            super().__init__(timeout=1800)
+            self.add_item(TFEnableSelect())
+            self.add_item(TFDisableSelect())
+
+        @discord.ui.button(label="Làm mới", style=discord.ButtonStyle.primary, emoji="🔄", row=0)
+        async def btn_refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            await interaction.response.edit_message(
+                content=_format_timeframes_msg()[:1900], view=TFPanelView()
+            )
+
+        @discord.ui.button(label="5m+15m", style=discord.ButtonStyle.secondary, row=0)
+        async def btn_scalp(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            await interaction.response.edit_message(
+                content=_tf_set(["5m", "15m"])[:1900], view=TFPanelView()
+            )
+
+        @discord.ui.button(label="15m+1h", style=discord.ButtonStyle.secondary, row=0)
+        async def btn_day(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            await interaction.response.edit_message(
+                content=_tf_set(["15m", "1h"])[:1900], view=TFPanelView()
+            )
+
+        @discord.ui.button(label="15m+1h+4h", style=discord.ButtonStyle.secondary, row=0)
+        async def btn_swing(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            await interaction.response.edit_message(
+                content=_tf_set(["15m", "1h", "4h"])[:1900], view=TFPanelView()
+            )
+
+
     class ControlPanelView(discord.ui.View):
         """Panel chính – timeout 30 phút."""
 
@@ -1522,7 +1761,7 @@ if HAS_DISCORD:
                 embed=emb, view=ConfirmKillView(), ephemeral=True
             )
 
-        @discord.ui.button(label="Gỡ Kill", style=discord.ButtonStyle.success, emoji="✅", row=1)
+        @discord.ui.button(label="Gỡ Kill", style=discord.ButtonStyle.success, emoji="✅", row=2)
         async def btn_unkill(self, interaction: discord.Interaction, button: discord.ui.Button):
             if not await _check_interaction(interaction):
                 return
@@ -1546,12 +1785,6 @@ if HAS_DISCORD:
             msg = _apply_param("default_leverage", "5")
             await interaction.response.send_message(msg, ephemeral=True)
 
-        @discord.ui.button(label="Lev 10x", style=discord.ButtonStyle.secondary, row=2)
-        async def btn_lev10(self, interaction: discord.Interaction, button: discord.ui.Button):
-            if not await _check_interaction(interaction):
-                return
-            msg = _apply_param("default_leverage", "10")
-            await interaction.response.send_message(msg, ephemeral=True)
 
         @discord.ui.button(
             label="Strategy", style=discord.ButtonStyle.primary, emoji="🎯", row=1
@@ -1562,6 +1795,16 @@ if HAS_DISCORD:
             await interaction.response.send_message(
                 content=_format_strategies_msg()[:1900],
                 view=StrategyPanelView(),
+                ephemeral=True,
+            )
+
+        @discord.ui.button(label="TF", style=discord.ButtonStyle.primary, emoji="⏱", row=1)
+        async def btn_tf_panel(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if not await _check_interaction(interaction):
+                return
+            await interaction.response.send_message(
+                content=_format_timeframes_msg()[:1900],
+                view=TFPanelView(),
                 ephemeral=True,
             )
 
@@ -1695,6 +1938,44 @@ def create_bot() -> Optional[Any]:
             return
         await ctx.send(embed=_panel_embed(), view=ControlPanelView())
 
+    
+    @bot.command(name="tf", aliases=["timeframe", "timeframes", "tfs"])
+    async def cmd_tf(ctx, action: str = None, *args):
+        """Quản lý timeframe quét: panel | add | remove | set"""
+        if not _is_authorized(ctx):
+            await ctx.send("⛔ Không có quyền.", delete_after=10)
+            return
+        act = (action or "panel").strip().lower()
+        if act in ("panel", "ui", "list", "ls", "status", "show"):
+            await ctx.send(content=_format_timeframes_msg()[:1900], view=TFPanelView())
+            return
+        if act in ("add", "on", "enable", "+"):
+            if not args:
+                await ctx.send(f"Dùng: `{ctx.prefix}tf add 5m 15m`")
+                return
+            await ctx.send(_tf_add(list(args))[:1900])
+            return
+        if act in ("remove", "rm", "off", "disable", "del", "-"):
+            if not args:
+                await ctx.send(f"Dùng: `{ctx.prefix}tf remove 4h`")
+                return
+            await ctx.send(_tf_remove(list(args))[:1900])
+            return
+        if act in ("set", "="):
+            if not args:
+                await ctx.send(f"Dùng: `{ctx.prefix}tf set 5m 15m 1h`")
+                return
+            await ctx.send(_tf_set(list(args))[:1900])
+            return
+        if _normalize_tf(act):
+            await ctx.send(_tf_add([act] + list(args))[:1900])
+            return
+        await ctx.send(
+            f"`{ctx.prefix}tf` · `{ctx.prefix}tf add 5m` · `{ctx.prefix}tf remove 4h` · "
+            f"`{ctx.prefix}tf set 15m 1h 4h`"
+        )
+
+
     @bot.command(name="help")
     async def cmd_help(ctx):
         if not _is_authorized(ctx):
@@ -1713,6 +1994,7 @@ def create_bot() -> Optional[Any]:
                 f"`{prefix}skip clear` · `{prefix}exclude list|add|remove|clear`\n"
                 f"`{prefix}log [n]` — n dòng cuối bot.log (mặc định 50)\n"
                 f"`{prefix}strategy list|on|off <name...>`\n"
+                f"`{prefix}tf` · `{prefix}tf add 5m` · `{prefix}tf set 15m 1h`\n"
                 f"`{prefix}ml` · `{prefix}ml on|off`\n\n"
                 "**Panel:** 🚫 Loại symbol · 📋 Blacklist · 🔁 Restart · 📥 Pull & Restart"
             ),
