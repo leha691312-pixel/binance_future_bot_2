@@ -1,23 +1,20 @@
 """
-Order guard: hủy SL/TP khi không còn vị thế trên symbol.
-Gọi mỗi cycle + lúc startup.
+Order guard: hủy SL/TP khi không còn vị thế (sau TP hit / timeout).
 """
 from typing import Dict, List, Any, Optional
 from loguru import logger
+import time
 
 
 def _symbol_key(symbol: str) -> str:
     if not symbol:
         return ""
     s = str(symbol).upper().replace(" ", "")
-    s = s.replace(":USDT", "").replace("/USDT", "USDT")
-    if "/" in s:
-        s = s.replace("/", "")
+    s = s.replace(":USDT", "").replace("/USDT", "USDT").replace("/", "").replace(":", "")
     return s
 
 
 def has_open_position(exchange, symbol: str) -> bool:
-    """True nếu còn vị thế size > 0 trên symbol."""
     if not symbol:
         return False
     key = _symbol_key(symbol)
@@ -33,15 +30,14 @@ def has_open_position(exchange, symbol: str) -> bool:
 
 
 def _list_symbols_with_open_orders(exchange) -> List[str]:
-    """Mọi symbol đang có lệnh thường hoặc conditional/algo."""
     symbols: List[str] = []
     seen = set()
-    if getattr(exchange, "mode", None) is not None:
-        mode_val = getattr(exchange.mode, "value", str(exchange.mode))
-        if str(mode_val).lower() == "paper":
-            return symbols
+    mode = getattr(exchange, "mode", None)
+    mode_val = getattr(mode, "value", str(mode or "")).lower()
+    if mode_val == "paper":
+        return symbols
     try:
-        for o in (exchange.exchange.fetch_open_orders() if exchange.exchange else []) or []:
+        for o in (exchange.exchange.fetch_open_orders() if getattr(exchange, "exchange", None) else []) or []:
             s = o.get("symbol")
             if s and s not in seen:
                 seen.add(s)
@@ -68,47 +64,55 @@ def _list_symbols_with_open_orders(exchange) -> List[str]:
 
 
 def cancel_sl_tp_if_no_position(exchange, symbol: Optional[str] = None) -> Dict[str, Any]:
-    """Kiểm tra lại và hủy SL/TP khi KHÔNG sở hữu vị thế coin đó.
-
-    - symbol: chỉ check 1 mã
-    - symbol=None: quét mọi mã đang có lệnh mở / conditional
-
-    Returns: {checked, canceled, kept, n_canceled}
     """
-    result: Dict[str, Any] = {
-        "checked": [],
-        "canceled": [],
-        "kept": [],
-        "n_canceled": 0,
-    }
+    Khi KHÔNG còn vị thế trên symbol → hủy hết LIMIT + STOP_MARKET (kể cả conditional/algo).
+    Gọi mỗi cycle + sau TP/timeout.
+    """
+    result: Dict[str, Any] = {"checked": [], "canceled": [], "kept": [], "n_canceled": 0}
     mode = getattr(exchange, "mode", None)
     mode_val = getattr(mode, "value", str(mode or "")).lower()
     if mode_val == "paper":
         return result
 
-    if symbol:
-        symbols = [symbol]
-    else:
-        symbols = _list_symbols_with_open_orders(exchange)
-
+    symbols = [symbol] if symbol else _list_symbols_with_open_orders(exchange)
     for sym in symbols:
         if not sym:
             continue
         result["checked"].append(sym)
         if has_open_position(exchange, sym):
             result["kept"].append(sym)
-            logger.debug(f"Keep SL/TP {sym}: still has position")
             continue
-        logger.warning(
-            f"No position on {sym} but open SL/TP remain → cancel protective orders"
-        )
-        try:
-            n = exchange.cancel_all_orders(sym) or 0
-            result["n_canceled"] += int(n)
-            result["canceled"].append(sym)
-            logger.info(f"Canceled SL/TP for flat symbol {sym} (n~={n})")
-        except Exception as e:
-            logger.error(f"cancel_sl_tp_if_no_position failed {sym}: {e}")
+        logger.warning(f"No position on {sym} but SL/TP remain → cancel (retry)")
+        n = 0
+        for attempt in range(3):
+            try:
+                fn = getattr(exchange, "cancel_protective_orders", None) or exchange.cancel_all_orders
+                n += int(fn(sym) or 0)
+            except Exception as e:
+                logger.error(f"cancel attempt {attempt+1} {sym}: {e}")
+            time.sleep(0.35)
+            # còn lệnh không?
+            still = False
+            try:
+                if exchange.exchange.fetch_open_orders(sym):
+                    still = True
+            except Exception:
+                pass
+            try:
+                if hasattr(exchange, "_fapi") and hasattr(exchange, "_market_id"):
+                    mid = exchange._market_id(sym)
+                    algos = exchange._fapi("openAlgoOrders", "GET", {"symbol": mid}) or []
+                    if isinstance(algos, dict):
+                        algos = algos.get("orders") or algos.get("data") or []
+                    if algos:
+                        still = True
+            except Exception:
+                pass
+            if not still:
+                break
+        result["n_canceled"] += n
+        result["canceled"].append(sym)
+        logger.info(f"Canceled leftover SL/TP for flat {sym} (ops~={n})")
 
     if result["canceled"]:
         logger.info(
