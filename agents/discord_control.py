@@ -2368,33 +2368,34 @@ def create_bot() -> Optional[Any]:
             return
         await ctx.send(f"`{prefix}exclude list|add|remove|clear`")
 
+
+    @bot.command(name="tfstrat", aliases=["strategy_tf", "stf", "tf_strat"])
+    async def tfstrat_cmd(ctx, *args):
+        """Per-strategy TF: !tfstrat | !tfstrat VWAPEMA9 15m 1h | !tfstrat clear Supertrend"""
+        if not getattr(ctx.author, "id", None) or int(ctx.author.id) not in ALLOWED_IDS:
+            return
+        if apply_tfstrat_command is None:
+            await ctx.send("❌ Thiếu agents/discord_tfstrat.py")
+            return
+        try:
+            st = control_state
+            scanner = getattr(st, "scanner", None)
+            settings = getattr(st, "settings", None) or {}
+            if scanner is None:
+                await ctx.send("⚠️ Scanner chưa sẵn sàng")
+                return
+            msg = apply_tfstrat_command(scanner, settings, list(args))
+            if len(msg) > 1900:
+                for i in range(0, min(len(msg), 9500), 1900):
+                    await ctx.send(msg[i:i + 1900])
+            else:
+                await ctx.send(msg)
+        except Exception as e:
+            await ctx.send(f"❌ tfstrat: {e}")
+
+
     return bot
 
-
-
-@bot.command(name="tfstrat", aliases=["strategy_tf", "stf", "tf_strat"])
-async def tfstrat_cmd(ctx, *args):
-    """Per-strategy timeframe map: !tfstrat | !tfstrat VWAPEMA9 15m 1h | !tfstrat clear Supertrend"""
-    if apply_tfstrat_command is None:
-        await ctx.send("❌ discord_tfstrat module missing")
-        return
-    try:
-        st = control_state
-        scanner = getattr(st, "scanner", None)
-        settings = getattr(st, "settings", None) or {}
-        if scanner is None:
-            await ctx.send("⚠️ Scanner not ready")
-            return
-        msg = apply_tfstrat_command(scanner, settings, list(args))
-        # keep under Discord limit
-        if len(msg) > 1900:
-            parts = [msg[i:i+1900] for i in range(0, len(msg), 1900)]
-            for p in parts[:5]:
-                await ctx.send(p)
-        else:
-            await ctx.send(msg)
-    except Exception as e:
-        await ctx.send(f"❌ tfstrat error: {e}")
 
 
 
