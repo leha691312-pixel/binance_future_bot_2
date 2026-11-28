@@ -50,9 +50,67 @@ strategy_timeframes:
   EMARSIScalp: [5m, 15m]
   MomentumRSI: [15m, 1h]
   RangeBounce: [15m, 1h]
+  ScalpConfluence: [15m]
+  SwingConfluence: [1h, 4h]
 # ====================== STRATEGY PARAMS (tuned) ======================
   
 strategy_params:
+  SwingConfluence:
+    ema_fast: 20
+    ema_slow: 50
+    rsi_period: 14
+    rsi_long_lo: 40
+    rsi_long_hi: 55
+    rsi_short_lo: 45
+    rsi_short_hi: 60
+    swing_lookback: 60
+    fib_lo: 0.382
+    fib_hi: 0.618
+    fib_tol: 0.006
+    bb_period: 20
+    bb_std: 2.0
+    squeeze_lookback: 40
+    squeeze_pctile: 0.25
+    vol_mult: 1.15
+    oi_lookback: 12
+    min_oi_change: 0.03
+    funding_extreme: 0.0008
+    use_vol_as_oi_proxy: true
+    min_score: 2
+    require_ma: true
+    require_fib: false
+    require_bb: false
+    rr: 1.6
+    min_rr: 1.2
+    atr_period: 14
+    sl_buffer_atr: 0.5
+    atr_sl_mult: 2.0
+    enable_long: false
+    enable_short: true
+  ScalpConfluence:
+    ribbon_p1: 5
+    ribbon_p2: 8
+    ribbon_p3: 13
+    min_spread_pct: 0.0003
+    stoch_k: 14
+    stoch_d: 3
+    stoch_os: 20
+    stoch_ob: 80
+    bb_period: 20
+    bb_std: 2.0
+    pivot_lookback: 5
+    pivot_tol: 0.0015
+    ema_fast: 8
+    ema_slow: 21
+    rsi_period: 7
+    min_score: 3
+    require_ribbon: false
+    require_stoch: false
+    rr: 1.3
+    atr_period: 14
+    atr_sl_mult: 1.35
+    enable_long: false
+    enable_short: true
   LiqSweepPDSupertrend:
     atr_period: 14
     st_factor: 3.0
