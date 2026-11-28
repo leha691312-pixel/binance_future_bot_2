@@ -1,4 +1,3 @@
-# ====================== RISK GATE ======================
 max_position_pct: 0.12
 max_total_exposure_pct: 5.0
 max_open_positions: 10
@@ -7,38 +6,25 @@ min_risk_reward_structure: 1.1
 max_daily_loss_pct: 0.03
 max_drawdown_pct: 0.12
 cooldown_seconds: 45
-
-# Leverage
 default_leverage: 5
 max_leverage: 8
-
-# Position sizing
-risk_per_trade_pct: 0.006
+risk_per_trade_pct: 0.01
 atr_multiplier_sl: 1.8
 min_notional_usdt: 5
-
-# Kill Switch
 kill_on_consecutive_losses: 6
-kill_on_api_error_rate: 0.40
+kill_on_api_error_rate: 0.4
 kill_on_high_volatility_atr: 4.0
-
-# Anti-duplicate
 duplicate_window_seconds: 300
-
-# Default hold (fallback)
 max_hold_minutes: 1440
-
-# Hold time by style (TF map: 5m/15m=scalp, 1h/2h=day, 4h+=swing)
 hold_profiles:
   scalp:
-    max_hold_minutes: 180
+    max_hold_minutes: 360
   day:
     max_hold_minutes: 1440
   swing:
-    max_hold_minutes: 2880
-
-# Fallback when TF unknown (style primarily from timeframe)
+    max_hold_minutes: 4320
 strategy_trade_style:
+  DayConfluence: day
   ORB: scalp
   LiquiditySweep: scalp
   MARibbon: scalp
@@ -62,15 +48,17 @@ strategy_trade_style:
   SwingRSI: swing
   FibPullback: swing
   BBSqueeze: swing
-
-# Dynamic risk (size scales with DD / streak; stop new entries at high DD)
 dynamic_risk:
   enabled: true
   dd_steps:
-    - {dd_pct: 0.04, mult: 0.75}
-    - {dd_pct: 0.08, mult: 0.5}
-    - {dd_pct: 0.12, mult: 0.3}
-    - {dd_pct: 0.20, mult: 0.0}
+  - dd_pct: 0.04
+    mult: 0.75
+  - dd_pct: 0.08
+    mult: 0.5
+  - dd_pct: 0.12
+    mult: 0.3
+  - dd_pct: 0.2
+    mult: 0.0
   loss_streak_mult:
     2: 0.8
     4: 0.5
@@ -84,8 +72,6 @@ dynamic_risk:
     swing: 1.0
   min_risk_pct: 0.002
   max_risk_pct: 0.008
-
-# ATR profiles by style
 atr_profiles:
   scalp:
     atr_period: 14
@@ -99,7 +85,5 @@ atr_profiles:
     atr_period: 14
     atr_sl_mult: 2.2
     sl_buffer_atr: 0.55
-
-# Safety flags (bot may ignore some)
 force_paper_on_startup: false
 require_manual_confirm_live: false
