@@ -57,6 +57,23 @@ strategy_timeframes:
   RangeBounce: [15m, 1h]
 # ====================== STRATEGY PARAMS (tuned) ======================
 strategy_params:
+  LiqSweepPDSupertrend:
+    atr_period: 14
+    st_factor: 3.0
+    sweep_lookback: 30
+    pd_lookback: 50
+    discount_max: 0.40
+    premium_min: 0.60
+    min_score: 2
+    require_st: true
+    require_sweep: false
+    require_pd: true
+    rr: 1.5
+    enable_long: false
+    enable_short: true
+    only_st_flip: false
+    sl_buffer_atr: 0.35
+
   TrendFibVWAP:
   # Trend
   ema_fast: 21
