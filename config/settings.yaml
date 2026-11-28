@@ -20,8 +20,10 @@ enabled_strategies:
 - EMARSIMACDDay
 - MartinEMAPullback
 - LiqSweepPDSupertrend
+- DayConfluence
 
 strategy_timeframes:
+  DayConfluence: [1h]
   VWAPEMA9: [15m, 1h]
   TrendFibVWAP: [1h, 4h]
   LiqSweepPDSupertrend: [15m]
@@ -55,6 +57,31 @@ strategy_timeframes:
 # ====================== STRATEGY PARAMS (tuned) ======================
   
 strategy_params:
+  DayConfluence:
+    ema_fast: 9
+    ema_slow: 21
+    ema_pull: 21
+    adx_period: 14
+    adx_trend_min: 22
+    adx_range_max: 20
+    rsi_period: 14
+    rsi_long_min: 45
+    rsi_long_max: 65
+    rsi_short_min: 35
+    rsi_short_max: 55
+    rsi_range_low: 35
+    rsi_range_high: 65
+    range_lookback: 30
+    zone_pct: 0.15
+    min_range_pct: 0.008
+    min_score: 2
+    allow_trend: true
+    allow_range: false   # sample: range gần như không đóng góp
+    rr: 1.4
+    atr_period: 14
+    atr_sl_mult: 1.6
+    enable_long: true
+    enable_short: true
   SwingConfluence:
     ema_fast: 20
     ema_slow: 50
