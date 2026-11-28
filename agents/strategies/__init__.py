@@ -2,7 +2,7 @@
 from typing import List, Optional, Dict, Any
 
 from .base import BaseStrategy
-from .liq_sweep_pd_supertrend import LiqSweepPDSupertrendStrategy
+
 from .orb import ORBStrategy
 from .liquidity_sweep import LiquiditySweepStrategy
 from .order_block import OrderBlockStrategy
@@ -27,10 +27,8 @@ from .fib_pullback import FibPullbackStrategy
 from .bb_squeeze import BBSqueezeStrategy
 
 from .premium_discount import PremiumDiscountStrategy
-try:
-    from liq_sweep_pd_supertrend import LiqSweepPDSupertrendStrategy
-except Exception:
-    LiqSweepPDSupertrendStrategy = None
+
+# Optional strategies (chỉ vào map nếu file .py tồn tại)
 try:
     from .ema_rsi_macd_day import EMARSIMACDDayStrategy
 except Exception:
@@ -60,6 +58,24 @@ try:
     from .trend_fib_vwap import TrendFibVWAPStrategy
 except Exception:
     TrendFibVWAPStrategy = None
+
+try:
+    from .ob_fvg_pullback_pd import OBFVGPullbackPDStrategy
+except Exception:
+    OBFVGPullbackPDStrategy = None
+
+try:
+    from .ob_fvg_pullback import OBFVGPullbackStrategy
+except Exception:
+    try:
+        from .ob_fvg_pullback_no_pd import OBFVGPullbackStrategy
+    except Exception:
+        OBFVGPullbackStrategy = None
+
+try:
+    from .liq_sweep_pd_supertrend import LiqSweepPDSupertrendStrategy
+except Exception:
+    LiqSweepPDSupertrendStrategy = None
 
 
 STRATEGY_MAP = {
@@ -97,6 +113,12 @@ if LuxICTConfluenceStrategy is not None:
     STRATEGY_MAP["LuxICTConfluence"] = LuxICTConfluenceStrategy
 if TrendFibVWAPStrategy is not None:
     STRATEGY_MAP["TrendFibVWAP"] = TrendFibVWAPStrategy
+if OBFVGPullbackPDStrategy is not None:
+    STRATEGY_MAP["OBFVGPullbackPD"] = OBFVGPullbackPDStrategy
+if OBFVGPullbackStrategy is not None:
+    STRATEGY_MAP["OBFVGPullback"] = OBFVGPullbackStrategy
+if LiqSweepPDSupertrendStrategy is not None:
+    STRATEGY_MAP["LiqSweepPDSupertrend"] = LiqSweepPDSupertrendStrategy
 
 
 STRATEGY_ALIASES = {
@@ -170,16 +192,20 @@ STRATEGY_ALIASES = {
     "vwap_ema": "VWAPEMA9",
     "supertrend": "Supertrend",
     "st": "Supertrend",
-    "lux_ict_confluence": "LuxICTConfluence",
-    "luxictconfluence": "LuxICTConfluence",
     "lux_ict": "LuxICTConfluence",
     "luxict": "LuxICTConfluence",
-    "ict": "LuxICTConfluence",
+    "lux_ict_confluence": "LuxICTConfluence",
     "trend_fib_vwap": "TrendFibVWAP",
     "trendfibvwap": "TrendFibVWAP",
-    "trendfib": "TrendFibVWAP",
     "tfv": "TrendFibVWAP",
     "confluence": "TrendFibVWAP",
+    "ob_fvg_pullback_pd": "OBFVGPullbackPD",
+    "obfvgpullbackpd": "OBFVGPullbackPD",
+    "ob_fvg_pullback": "OBFVGPullback",
+    "obfvgpullback": "OBFVGPullback",
+    "liq_sweep_pd_supertrend": "LiqSweepPDSupertrend",
+    "liqsweeppdsupertrend": "LiqSweepPDSupertrend",
+    "liq_pd_st": "LiqSweepPDSupertrend",
 }
 
 
@@ -216,7 +242,10 @@ def get_all_strategies(
             continue
         p = dict(params)
         p.update(strategy_params.get(name, {}))
-        strategies.append(cls(p))
+        try:
+            strategies.append(cls(p))
+        except Exception:
+            continue
     return strategies
 
 
