@@ -26,7 +26,35 @@ excluded_symbols: []
 enabled_strategies:
   - TrendFibVWAP
 
-
+strategy_timeframes:
+  VWAPEMA9: [15m, 1h]
+  TrendFibVWAP: [1h, 4h]
+  LiqSweepPDSupertrend: [15m]
+  FibPullback: [5m, 15m]
+  Supertrend: [15m]
+  ORB: [5m, 15m]
+  MartinEMAPullback: [1h, 4h]
+  LuxICTConfluence: [15m, 1h]
+  OBFVGPullback: [4h]
+  OBFVGPullbackPD: [4h]
+  EMARSIMACDDay: [15m, 1h]
+  PremiumDiscount: [15m, 1h]
+  OrderBlock: [1h, 4h]
+  SupplyDemand: [1h, 4h]
+  FVG: [15m, 1h]
+  BOS_CHOCH: [15m, 1h]
+  TrendMA: [15m, 1h]
+  PullbackEMA: [15m, 1h]
+  SwingMACross: [4h]
+  SwingRSI: [4h]
+  BBSqueeze: [1h, 4h]
+  OI_Funding: [4h]
+  MARibbon: [5m, 15m]
+  StochBB: [5m, 15m]
+  PivotScalp: [5m, 15m]
+  EMARSIScalp: [5m, 15m]
+  MomentumRSI: [15m, 1h]
+  RangeBounce: [15m, 1h]
 # ====================== STRATEGY PARAMS (tuned) ======================
 strategy_params:
   TrendFibVWAP:
