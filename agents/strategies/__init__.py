@@ -77,6 +77,16 @@ try:
 except Exception:
     LiqSweepPDSupertrendStrategy = None
 
+try:
+    from .swing_confluence import SwingConfluenceStrategy
+except Exception:
+    SwingConfluenceStrategy = None
+
+try:
+    from .scalp_confluence import ScalpConfluenceStrategy
+except Exception:
+    ScalpConfluenceStrategy = None
+
 
 STRATEGY_MAP = {
     "ORB": ORBStrategy,
@@ -119,6 +129,10 @@ if OBFVGPullbackStrategy is not None:
     STRATEGY_MAP["OBFVGPullback"] = OBFVGPullbackStrategy
 if LiqSweepPDSupertrendStrategy is not None:
     STRATEGY_MAP["LiqSweepPDSupertrend"] = LiqSweepPDSupertrendStrategy
+if SwingConfluenceStrategy is not None:
+    STRATEGY_MAP["SwingConfluence"] = SwingConfluenceStrategy
+if ScalpConfluenceStrategy is not None:
+    STRATEGY_MAP["ScalpConfluence"] = ScalpConfluenceStrategy
 
 
 STRATEGY_ALIASES = {
@@ -206,6 +220,12 @@ STRATEGY_ALIASES = {
     "liq_sweep_pd_supertrend": "LiqSweepPDSupertrend",
     "liqsweeppdsupertrend": "LiqSweepPDSupertrend",
     "liq_pd_st": "LiqSweepPDSupertrend",
+    "swing_confluence": "SwingConfluence",
+    "swingconfluence": "SwingConfluence",
+    "swing_conf": "SwingConfluence",
+    "scalp_confluence": "ScalpConfluence",
+    "scalpconfluence": "ScalpConfluence",
+    "scalp_conf": "ScalpConfluence",
 }
 
 
