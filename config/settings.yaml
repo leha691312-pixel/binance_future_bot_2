@@ -1,30 +1,25 @@
-# ====================== BOT SETTINGS ======================
-# mode: paper | testnet | live
 mode: testnet
-
-# Symbols: top N by 24h volatility (not volume)
-top_n: 50
+top_n: 300
 min_quote_volume_top: 500000
-
-# Timeframes (5m/15m → scalp, 1h/2h → day, 4h+ → swing)
 timeframes:
-  - "15m"
-  - "1h"
-
-scan_interval_seconds: 120
+- 15m
+- 1h
+- 4h
+scan_interval_seconds: 180
 scan_parallel: true
-scan_workers: 4
-
-# Margin: isolated | cross
+scan_workers: 8
 margin_mode: cross
-
-# Blacklist (Discord: !exclude add SYMBOL)
-excluded_symbols: []
-
-# ====================== STRATEGIES ======================
-# Gợi ý sau backtest (edge rõ). Bật thêm bằng Discord !strategy on NAME
+excluded_symbols:
+- DASH/USDT:USDT
+- PTB/USDT:USDT
+- PUMPBTC/USDT:USDT
+- SLERF/USDT:USDT
+- 测试测试/USDT:USDT
 enabled_strategies:
-  - TrendFibVWAP
+- TrendFibVWAP
+- EMARSIMACDDay
+- MartinEMAPullback
+- LiqSweepPDSupertrend
 
 strategy_timeframes:
   VWAPEMA9: [15m, 1h]
@@ -56,6 +51,7 @@ strategy_timeframes:
   MomentumRSI: [15m, 1h]
   RangeBounce: [15m, 1h]
 # ====================== STRATEGY PARAMS (tuned) ======================
+  
 strategy_params:
   LiqSweepPDSupertrend:
     atr_period: 14
@@ -75,39 +71,37 @@ strategy_params:
     sl_buffer_atr: 0.35
 
   TrendFibVWAP:
-  # Trend
-  ema_fast: 21
-  ema_slow: 50
-  ema_trend: 200
-  # VWAP + EMA9
-  ema9: 9
-  vwap_window: 48          # trung gian 15m(96) / 4h(42)
-  touch_pct: 0.0025
-  pullback_lookback: 5
-  # Fib
-  swing_lookback: 50       # trung gian 60 / 40
-  fib_lo: 0.5
-  fib_hi: 0.786
-  # Confluence
-  min_score: 2
-  require_trend: true
-  require_vwap: false
-  # Risk
-  rr: 1.5
-  sl_buffer_atr: 0.55
-  atr_period: 14
-  min_atr_pct: 0.0015
-  # Phía lệnh
-  enable_long: false       # short thắng trên cả 3 TF
-  enable_short: true
-  # Filter
-  vol_filter: true
-  vol_ma_period: 20
-  vol_min_ratio: 0.9
-  rsi_filter: false        # RSI làm yếu 15m short
+   # Trend
+   ema_fast: 21
+   ema_slow: 50
+   ema_trend: 200
+   # VWAP + EMA9
+   ema9: 9
+   vwap_window: 48          # trung gian 15m(96) / 4h(42)
+   touch_pct: 0.0025
+   pullback_lookback: 5
+   # Fib
+   swing_lookback: 50       # trung gian 60 / 40
+   fib_lo: 0.5
+   fib_hi: 0.786
+   # Confluence
+   min_score: 2
+   require_trend: true
+   require_vwap: false
+   # Risk
+   rr: 1.5
+   sl_buffer_atr: 0.55
+   atr_period: 14
+   min_atr_pct: 0.0015
+   # Phía lệnh
+   enable_long: false       # short thắng trên cả 3 TF
+   enable_short: true
+   # Filter
+   vol_filter: true
+   vol_ma_period: 20
+   vol_min_ratio: 0.9
+   rsi_filter: false        # RSI làm yếu 15m short
   Supertrend:
-    # Tối ưu backtest (ETH/SOL/BTC · 15m/1h/4h): SHORT-only ATR14×3 RR1.5
-    # WR~42% meanR=+0.13 totalR=+34 PF~1.38 maxDD~-6.5
     atr_period: 14
     factor: 3.0
     rr: 1.5
@@ -126,8 +120,8 @@ strategy_params:
     liq_lookback: 25
     fib_low: 0.5
     fib_high: 0.786
-    require_fib: false          # Fib OTE optional (strict hơn nếu true)
-    require_liq_sweep: true     # quét thanh khoản
+    require_fib: false
+    require_liq_sweep: true
     require_fvg: true
     require_ob: false
     vol_mult: 1.15
@@ -135,10 +129,9 @@ strategy_params:
     rr: 1.5
     min_rr: 1.2
     sl_buffer_atr: 0.35
-    enable_long: false          # LONG yếu trên sample → mặc định tắt
+    enable_long: true
     enable_short: true
     min_score: 3
-
   VWAPEMA9:
     ema_period: 9
     use_daily_vwap: true
@@ -151,15 +144,13 @@ strategy_params:
     sl_swing_lookback: 10
     min_atr_pct: 0.0012
     require_vwap_side: true
-    enable_long: false
+    enable_long: true
     enable_short: true
-
   FibPullback:
-    rr: 1.2
-    min_rr: 1.0
+    rr: 1.5
+    min_rr: 1.2
     atr_sl_mult: 1.4
     lookback: 50
-
   MartinEMAPullback:
     ema_fast: 9
     ema_mid: 21
@@ -172,12 +163,10 @@ strategy_params:
     enable_short_9: true
     enable_short_21: true
     enable_short_50: true
-
   SupplyDemand:
     rr: 1.5
     atr_sl_mult: 1.6
     lookback: 40
-
   EMARSIMACDDay:
     ema_fast: 21
     ema_mid: 50
@@ -191,8 +180,6 @@ strategy_params:
     pullback_lookback: 5
     sl_swing_lookback: 10
     sl_buffer_atr: 0.4
-
-  # Defaults for other strategies (if enabled later)
   ORB:
     rr: 1.25
     atr_sl_mult: 1.35
@@ -250,54 +237,46 @@ strategy_params:
   BBSqueeze:
     rr: 1.35
     atr_sl_mult: 2.0
-
-# ====================== SIGNAL REFINE ======================
-# Với 5 strategy: tắt bias+trigger & consensus chặt; giữ HTF tùy chọn
 signal_refine:
   consensus_enabled: false
   min_strategy_agree: 1
   consensus_same_style: false
   bias_trigger_enabled: false
-
   htf_bias_enabled: true
-  htf_timeframe: "1h"
+  htf_timeframe: 4h
   htf_ema_fast: 21
   htf_ema_slow: 50
-
-  mtf_enabled: false
+  mtf_enabled: true
   mtf_timeframes:
-    - "1h"
-    - "4h"
+  - 1h
+  - 4h
   mtf_require_all_align: false
   mtf_min_align: 1
-
-  killzone_enabled: false
-  killzone_mode: filter
+  killzone_enabled: true
+  killzone_mode: tag
   killzone_inside_conf_boost: 0.05
   killzone_outside_conf_mult: 0.7
   killzones:
     asia:
-      start: "00:00"
-      end: "09:00"
+      start: 00:00
+      end: 09:00
       enabled: false
     london:
-      start: "07:00"
-      end: "10:00"
+      start: 07:00
+      end: '10:00'
       enabled: true
     ny_am:
-      start: "12:00"
-      end: "15:00"
+      start: '12:00'
+      end: '15:00'
       enabled: true
     ny_pm:
-      start: "15:00"
-      end: "18:00"
+      start: '15:00'
+      end: '18:00'
       enabled: false
     london_close:
-      start: "15:00"
-      end: "17:00"
+      start: '15:00'
+      end: '17:00'
       enabled: false
-
-# ====================== ML ======================
 ml_model_path: data/models/signal_filter.joblib
 ml_filter_enabled: true
 ml_collect_only: true
@@ -311,7 +290,5 @@ ml_min_r_multiple: 0.25
 ml_fee_rate: 0.0004
 ml_per_style: false
 ml_min_samples_per_style: 40
-
-# ====================== LOG ======================
 log_file: logs/bot.log
 log_level: INFO
