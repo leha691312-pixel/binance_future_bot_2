@@ -1,128 +1,131 @@
-"""
-Discord helpers: per-strategy timeframe map
-Import/call from discord_control if desired.
-
-Commands idea:
-  !tfstrat                     → list map
-  !tfstrat VWAPEMA9 15m 1h     → set map for one strategy
-  !tfstrat clear VWAPEMA9      → remove override (use global TFs)
-"""
+"""Discord helpers: map timeframe per strategy."""
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import yaml
 from loguru import logger
 
-try:
-    from agents.scanner import normalize_tf
-except Exception:
-    def normalize_tf(tf: str) -> str:
-        return str(tf).strip().lower()
+VALID_TFS = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"}
 
 
 def _settings_path() -> Path:
     return Path(__file__).resolve().parent.parent / "config" / "settings.yaml"
 
 
-def load_strategy_timeframes(settings: Optional[dict] = None) -> Dict[str, List[str]]:
-    if settings is None:
-        try:
-            with open(_settings_path(), encoding="utf-8") as f:
-                settings = yaml.safe_load(f) or {}
-        except Exception:
-            settings = {}
-    raw = settings.get("strategy_timeframes") or {}
-    out: Dict[str, List[str]] = {}
-    for k, v in raw.items():
-        if isinstance(v, str):
-            tfs = [normalize_tf(x) for x in v.replace(";", ",").split(",") if x.strip()]
-        else:
-            tfs = [normalize_tf(str(x)) for x in (v or [])]
-        tfs = [t for t in tfs if t]
-        if tfs:
-            out[str(k)] = tfs
-    return out
-
-
-def save_strategy_timeframes(mapping: Dict[str, List[str]], settings: Optional[dict] = None) -> bool:
+def _save_settings(settings: dict) -> None:
     path = _settings_path()
     try:
-        with open(path, encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
     except Exception:
-        data = settings or {}
-    # only keep TitleCase keys for yaml cleanliness
-    clean = {}
-    for k, v in mapping.items():
-        if not k or k != k.strip():
-            continue
-        if k[0].islower() and k.lower() == k:
-            continue  # skip pure lowercase alias keys
-        clean[k] = list(v)
-    data["strategy_timeframes"] = clean
+        data = {}
+    data["strategy_timeframes"] = settings.get("strategy_timeframes") or {}
+    if "timeframes" in settings:
+        data["timeframes"] = settings["timeframes"]
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+
+def apply_tfstrat_command(scanner, settings: dict, args: List[str]) -> str:
+    """
+    !tfstrat
+    !tfstrat VWAPEMA9 15m 1h
+    !tfstrat clear Supertrend
+    """
+    settings = settings if isinstance(settings, dict) else {}
+    st_map: Dict[str, List[str]] = dict(settings.get("strategy_timeframes") or {})
+
+    # resolve strategy names from scanner if possible
+    known = []
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
-        return True
-    except Exception as e:
-        logger.error(f"save strategy_timeframes failed: {e}")
-        return False
+        for s in getattr(scanner, "strategies", []) or []:
+            n = getattr(s, "name", None) or type(s).__name__.replace("Strategy", "")
+            if n:
+                known.append(str(n))
+    except Exception:
+        pass
 
-
-def format_tfstrat_list(scanner, settings: Optional[dict] = None) -> str:
-    global_tfs = list(getattr(scanner, "timeframes", None) or ["15m", "1h"])
-    mapping = load_strategy_timeframes(settings)
-    lines = [f"**Global TFs:** `{', '.join(global_tfs)}`", "", "**Per-strategy:**"]
-    names = [s.name for s in getattr(scanner, "strategies", [])]
-    if not names:
-        names = sorted({k for k in mapping if k[:1].isupper()})
-    for n in names:
-        tfs = mapping.get(n) or mapping.get(n.lower())
-        if tfs:
-            lines.append(f"• **{n}**: `{', '.join(tfs)}`")
-        else:
-            lines.append(f"• **{n}**: _(global)_ `{', '.join(global_tfs)}`")
-    if not names:
-        lines.append("_No strategies loaded_")
-    return "\n".join(lines)
-
-
-def apply_tfstrat_command(
-    scanner,
-    settings: dict,
-    args: List[str],
-) -> str:
-    """
-    args examples:
-      [] -> list
-      ['VWAPEMA9', '15m', '1h'] -> set
-      ['clear', 'VWAPEMA9'] -> remove override
-    """
-    mapping = load_strategy_timeframes(settings)
     if not args:
-        return format_tfstrat_list(scanner, settings)
+        lines = ["**strategy_timeframes** (TF riêng từng strategy):", ""]
+        if not st_map:
+            lines.append("_Chưa cấu hình — mọi strategy dùng `timeframes` chung._")
+        else:
+            for k in sorted(st_map.keys()):
+                tfs = st_map[k]
+                lines.append(f"• **{k}**: {', '.join(tfs) if tfs else '—'}")
+        lines.append("")
+        lines.append("```\n!tfstrat VWAPEMA9 15m 1h\n!tfstrat clear Supertrend\n!tfstrat clear all\n```")
+        if known:
+            lines.append("Strategies: " + ", ".join(known[:25]))
+        return "\n".join(lines)
 
-    if args[0].lower() in ("clear", "rm", "remove", "reset") and len(args) >= 2:
-        name = args[1]
-        mapping.pop(name, None)
-        mapping.pop(name.lower(), None)
-        settings["strategy_timeframes"] = {k: v for k, v in mapping.items() if k[:1].isupper()}
-        save_strategy_timeframes(settings["strategy_timeframes"], settings)
-        if hasattr(scanner, "set_strategy_timeframes"):
-            scanner.set_strategy_timeframes(settings["strategy_timeframes"])
-        return f"✅ Cleared TF map for **{name}** (uses global TFs)"
+    a0 = str(args[0]).strip().lower()
+    if a0 in ("clear", "rm", "delete", "reset"):
+        if len(args) < 2:
+            return "Dùng: `!tfstrat clear Supertrend` hoặc `!tfstrat clear all`"
+        target = str(args[1]).strip()
+        if target.lower() == "all":
+            st_map = {}
+            settings["strategy_timeframes"] = st_map
+            try:
+                if hasattr(scanner, "strategy_timeframes"):
+                    scanner.strategy_timeframes = {}
+            except Exception:
+                pass
+            try:
+                _save_settings(settings)
+            except Exception as e:
+                logger.warning(f"save strategy_timeframes: {e}")
+            return "✅ Đã xóa **toàn bộ** strategy_timeframes (mọi strategy dùng TF chung)."
+        # match name
+        key = target
+        for k in list(st_map.keys()):
+            if k.lower() == target.lower():
+                key = k
+                break
+        if key in st_map:
+            del st_map[key]
+            settings["strategy_timeframes"] = st_map
+            try:
+                if hasattr(scanner, "strategy_timeframes"):
+                    scanner.strategy_timeframes = dict(st_map)
+            except Exception:
+                pass
+            try:
+                _save_settings(settings)
+            except Exception as e:
+                logger.warning(f"save: {e}")
+            return f"✅ Đã xóa TF riêng của **{key}**."
+        return f"⚠️ Không thấy `{target}` trong map."
 
-    # set: Name tf1 tf2 ...
-    name = args[0]
-    tfs = [normalize_tf(x) for x in args[1:]]
-    tfs = [t for t in tfs if t]
+    # set: name tf1 tf2 ...
+    name = str(args[0]).strip()
+    tfs = []
+    for x in args[1:]:
+        t = str(x).strip().lower()
+        if t in VALID_TFS and t not in tfs:
+            tfs.append(t)
     if not tfs:
-        return "Usage: `!tfstrat StrategyName 15m 1h` or `!tfstrat clear StrategyName`"
-    mapping[name] = tfs
-    settings["strategy_timeframes"] = {k: v for k, v in mapping.items() if not (k.islower() and k == k.lower() and k[:1].islower())}
-    # always keep the explicit name
-    settings["strategy_timeframes"][name] = tfs
-    save_strategy_timeframes(settings["strategy_timeframes"], settings)
-    if hasattr(scanner, "set_strategy_timeframes"):
-        scanner.set_strategy_timeframes(settings["strategy_timeframes"])
-    return f"✅ **{name}** → TF `{', '.join(tfs)}`"
+        return f"Cần TF hợp lệ: {', '.join(sorted(VALID_TFS))}\nVD: `!tfstrat {name} 15m 1h`"
+
+    # canonicalize name
+    key = name
+    for n in known:
+        if n.lower() == name.lower():
+            key = n
+            break
+    st_map[key] = tfs
+    settings["strategy_timeframes"] = st_map
+    try:
+        if hasattr(scanner, "strategy_timeframes"):
+            scanner.strategy_timeframes = dict(st_map)
+    except Exception as e:
+        logger.warning(f"scanner update: {e}")
+    try:
+        _save_settings(settings)
+    except Exception as e:
+        logger.warning(f"save settings: {e}")
+        return f"✅ Runtime: **{key}** → {tfs}\n⚠️ Không ghi được settings.yaml: {e}"
+    return f"✅ **{key}** chỉ quét TF: `{', '.join(tfs)}` (đã lưu settings.yaml)"
