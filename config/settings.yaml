@@ -24,13 +24,7 @@ excluded_symbols: []
 # ====================== STRATEGIES ======================
 # Gợi ý sau backtest (edge rõ). Bật thêm bằng Discord !strategy on NAME
 enabled_strategies:
-  - VWAPEMA9
-  - FibPullback
-  - MartinEMAPullback
-  - SupplyDemand
-  - EMARSIMACDDay
-  - LuxICTConfluence
-  - Supertrend
+  - TrendFibVWAP
 
 
 # ====================== STRATEGY PARAMS (tuned) ======================
