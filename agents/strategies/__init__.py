@@ -2,7 +2,7 @@
 from typing import List, Optional, Dict, Any
 
 from .base import BaseStrategy
-
+from .liq_sweep_pd_supertrend import LiqSweepPDSupertrendStrategy
 from .orb import ORBStrategy
 from .liquidity_sweep import LiquiditySweepStrategy
 from .order_block import OrderBlockStrategy
@@ -27,7 +27,10 @@ from .fib_pullback import FibPullbackStrategy
 from .bb_squeeze import BBSqueezeStrategy
 
 from .premium_discount import PremiumDiscountStrategy
-
+try:
+    from liq_sweep_pd_supertrend import LiqSweepPDSupertrendStrategy
+except Exception:
+    LiqSweepPDSupertrendStrategy = None
 try:
     from .ema_rsi_macd_day import EMARSIMACDDayStrategy
 except Exception:
