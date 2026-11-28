@@ -8,10 +8,8 @@ min_quote_volume_top: 500000
 
 # Timeframes (5m/15m → scalp, 1h/2h → day, 4h+ → swing)
 timeframes:
-  - "5m"
   - "15m"
   - "1h"
-  - "4h"
 
 scan_interval_seconds: 120
 scan_parallel: true
