@@ -30,40 +30,36 @@ enabled_strategies:
 # ====================== STRATEGY PARAMS (tuned) ======================
 strategy_params:
   TrendFibVWAP:
+  # Trend
   ema_fast: 21
   ema_slow: 50
   ema_trend: 200
+  # VWAP + EMA9
   ema9: 9
-  vwap_window: 96
+  vwap_window: 48          # trung gian 15m(96) / 4h(42)
   touch_pct: 0.0025
-  pullback_lookback: 6
-  swing_lookback: 60
+  pullback_lookback: 5
+  # Fib
+  swing_lookback: 50       # trung gian 60 / 40
   fib_lo: 0.5
   fib_hi: 0.786
+  # Confluence
   min_score: 2
   require_trend: true
   require_vwap: false
+  # Risk
   rr: 1.5
   sl_buffer_atr: 0.55
   atr_period: 14
   min_atr_pct: 0.0015
-  enable_long: false      # sample: short mạnh hơn
+  # Phía lệnh
+  enable_long: false       # short thắng trên cả 3 TF
   enable_short: true
+  # Filter
   vol_filter: true
   vol_ma_period: 20
   vol_min_ratio: 0.9
-  rsi_filter: false       # 15m short noRSI tốt hơn có RSI
-  rsi_period: 14
-  rsi_long_min: 35
-  rsi_long_max: 58
-  rsi_short_min: 42
-  rsi_short_max: 68
-
-# Biến thể chất lượng cao (ít lệnh):
-#   min_score: 3
-#   enable_long: true
-#   enable_short: true
-#   rsi_filter: true
+  rsi_filter: false        # RSI làm yếu 15m short
   Supertrend:
     # Tối ưu backtest (ETH/SOL/BTC · 15m/1h/4h): SHORT-only ATR14×3 RR1.5
     # WR~42% meanR=+0.13 totalR=+34 PF~1.38 maxDD~-6.5
