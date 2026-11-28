@@ -1,6 +1,10 @@
 """
 Main Orchestrator - Multi-agent trading bot
-ML: R-label, time-split, collect_only, deploy gate
+- ML filter / collect
+- Discord control
+- strategy_timeframes (per-strategy TF map)
+- Safe Windows restart (path with spaces)
+- order_guard: cancel SL/TP when flat
 """
 import os
 import sys
@@ -74,8 +78,7 @@ def main():
     logger.info(f"=== Starting Bot in mode: {mode.upper()} ===")
 
     if mode == "live":
-    # Không hỏi xác nhận – chạy thẳng live (tiền thật)
-       logger.warning("LIVE MODE – Real money at risk. Auto-start (no confirm).")
+        logger.warning("LIVE MODE – Real money at risk. Auto-start (no confirm).")
 
     exchange = ExchangeWrapper(mode=mode, config=settings)
     risk_gate = RiskGate(risk_config=risk_cfg, equity=exchange.get_balance())
@@ -97,17 +100,42 @@ def main():
     if enabled is not None and len(enabled) == 0:
         enabled = None
 
-    scanner = ScannerAgent(
-        exchange,
+    # Scanner: parallel + refine + per-strategy TF map
+    scanner_kwargs = dict(
+        exchange=exchange,
         top_n=settings.get("top_n", 20),
         timeframes=settings.get("timeframes", ["15m", "1h"]),
         enabled_strategies=enabled,
         strategy_params=settings.get("strategy_params") or {},
         excluded_symbols=settings.get("excluded_symbols") or [],
     )
+    # optional kwargs (older scanner may not accept all)
+    optional = {
+        "parallel": bool(settings.get("scan_parallel", True)),
+        "max_workers": int(settings.get("scan_workers", 8)),
+        "refine_cfg": settings.get("signal_refine") or {},
+        "style_map": (risk_cfg.get("strategy_trade_style") or {}),
+        "strategy_timeframes": settings.get("strategy_timeframes") or {},
+    }
+    try:
+        scanner = ScannerAgent(**scanner_kwargs, **optional)
+    except TypeError:
+        # fallback older ScannerAgent signature
+        scanner = ScannerAgent(**scanner_kwargs)
+        if hasattr(scanner, "set_strategy_timeframes"):
+            scanner.set_strategy_timeframes(settings.get("strategy_timeframes") or {})
+        if hasattr(scanner, "parallel"):
+            scanner.parallel = bool(settings.get("scan_parallel", True))
+        if hasattr(scanner, "max_workers"):
+            scanner.max_workers = int(settings.get("scan_workers", 8))
+        if hasattr(scanner, "refine_cfg"):
+            scanner.refine_cfg = dict(settings.get("signal_refine") or {})
+        if hasattr(scanner, "style_map"):
+            scanner.style_map = dict(risk_cfg.get("strategy_trade_style") or {})
+
     logger.info(f"Active strategies: {[s.name for s in scanner.strategies]}")
 
-    ml_agent = MLAgent(
+    ml_kwargs = dict(
         model_path=settings.get("ml_model_path", "data/models/signal_filter.joblib"),
         samples_path=settings.get("ml_samples_path", "data/models/train_samples.jsonl"),
         min_samples=int(settings.get("ml_min_samples", 80)),
@@ -122,21 +150,44 @@ def main():
         prob_threshold=float(settings.get("ml_prob_threshold", 0.55)),
         test_ratio=float(settings.get("ml_test_ratio", 0.25)),
     )
+    try:
+        ml_agent = MLAgent(
+            **ml_kwargs,
+            per_style=bool(settings.get("ml_per_style", False)),
+            style_map=risk_cfg.get("strategy_trade_style") or {},
+            min_samples_per_style=int(settings.get("ml_min_samples_per_style", 40)),
+            prob_threshold_by_style=settings.get("ml_prob_threshold_by_style") or {},
+        )
+    except TypeError:
+        ml_agent = MLAgent(**ml_kwargs)
+
     _attach_ml_close_hook(risk_gate, ml_agent)
     logger.info(f"ML status: {ml_agent.status()}")
 
     ohlcv_cache: dict = {}
     default_lev = int(risk_cfg.get("default_leverage", 5))
     max_lev = int(risk_cfg.get("max_leverage", 10))
-    executor = ExecutionAgent(
-        exchange,
-        risk_gate,
-        default_leverage=default_lev,
-        max_leverage=max_lev,
-        order_logger=order_logger,
-        ml_agent=ml_agent,
-        ohlcv_cache=ohlcv_cache,
-    )
+    try:
+        executor = ExecutionAgent(
+            exchange,
+            risk_gate,
+            default_leverage=default_lev,
+            max_leverage=max_lev,
+            order_logger=order_logger,
+            ml_agent=ml_agent,
+            ohlcv_cache=ohlcv_cache,
+            risk_config=risk_cfg,
+        )
+    except TypeError:
+        executor = ExecutionAgent(
+            exchange,
+            risk_gate,
+            default_leverage=default_lev,
+            max_leverage=max_lev,
+            order_logger=order_logger,
+            ml_agent=ml_agent,
+            ohlcv_cache=ohlcv_cache,
+        )
 
     control_state.set_refs(risk_gate, executor, exchange, settings, risk_cfg, mode)
     try:
@@ -147,6 +198,7 @@ def main():
     start_discord_in_thread()
 
     logger.info("All agents ready. Starting main loop...")
+    max_signals_per_cycle = int(settings.get("max_signals_per_cycle", 3))
 
     try:
         while True:
@@ -166,7 +218,6 @@ def main():
                 except Exception:
                     pass
                 time.sleep(1.5)
-                # Restart an toàn trên Windows (path có khoảng trắng, vd "New folder")
                 script = Path(__file__).resolve()
                 cwd = str(script.parent)
                 args = [sys.executable, str(script)] + list(sys.argv[1:])
@@ -174,11 +225,14 @@ def main():
                 try:
                     if sys.platform.startswith("win"):
                         import subprocess
+                        flags = 0
+                        flags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                        flags |= getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
                         subprocess.Popen(
                             args,
                             cwd=cwd,
                             close_fds=False,
-                            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+                            creationflags=flags,
                         )
                         os._exit(0)
                     else:
@@ -235,10 +289,23 @@ def main():
             except Exception as e:
                 logger.warning(f"cancel_sl_tp_if_no_position: {e}")
 
+            # hot-reload some settings each cycle
             if hasattr(scanner, "top_n"):
                 scanner.top_n = int(settings.get("top_n", scanner.top_n))
             if hasattr(scanner, "set_excluded_symbols"):
                 scanner.set_excluded_symbols(settings.get("excluded_symbols") or [])
+            if hasattr(scanner, "set_strategy_timeframes"):
+                try:
+                    scanner.set_strategy_timeframes(settings.get("strategy_timeframes") or {})
+                except Exception:
+                    pass
+            if hasattr(scanner, "timeframes") and settings.get("timeframes"):
+                try:
+                    from agents.scanner import normalize_tf
+                    scanner.timeframes = [normalize_tf(x) for x in settings["timeframes"] if normalize_tf(x)]
+                except Exception:
+                    scanner.timeframes = list(settings.get("timeframes") or scanner.timeframes)
+
             new_enabled = settings.get("enabled_strategies")
             if new_enabled is not None:
                 current_names = [s.name for s in scanner.strategies]
@@ -260,7 +327,7 @@ def main():
                 executor.begin_cycle()
 
             executed = 0
-            for sig in signals[:3]:
+            for sig in signals[:max_signals_per_cycle]:
                 if executor.execute(sig):
                     executed += 1
 
