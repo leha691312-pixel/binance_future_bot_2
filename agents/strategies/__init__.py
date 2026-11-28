@@ -87,6 +87,11 @@ try:
 except Exception:
     ScalpConfluenceStrategy = None
 
+try:
+    from .day_confluence import DayConfluenceStrategy
+except Exception:
+    DayConfluenceStrategy = None
+
 
 STRATEGY_MAP = {
     "ORB": ORBStrategy,
@@ -133,6 +138,8 @@ if SwingConfluenceStrategy is not None:
     STRATEGY_MAP["SwingConfluence"] = SwingConfluenceStrategy
 if ScalpConfluenceStrategy is not None:
     STRATEGY_MAP["ScalpConfluence"] = ScalpConfluenceStrategy
+if DayConfluenceStrategy is not None:
+    STRATEGY_MAP["DayConfluence"] = DayConfluenceStrategy
 
 
 STRATEGY_ALIASES = {
@@ -226,6 +233,9 @@ STRATEGY_ALIASES = {
     "scalp_confluence": "ScalpConfluence",
     "scalpconfluence": "ScalpConfluence",
     "scalp_conf": "ScalpConfluence",
+    "day_confluence": "DayConfluence",
+    "dayconfluence": "DayConfluence",
+    "day_conf": "DayConfluence",
 }
 
 
