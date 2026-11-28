@@ -53,6 +53,11 @@ try:
 except Exception:
     LuxICTConfluenceStrategy = None
 
+try:
+    from .trend_fib_vwap import TrendFibVWAPStrategy
+except Exception:
+    TrendFibVWAPStrategy = None
+
 
 STRATEGY_MAP = {
     "ORB": ORBStrategy,
@@ -87,6 +92,8 @@ if SupertrendStrategy is not None:
     STRATEGY_MAP["Supertrend"] = SupertrendStrategy
 if LuxICTConfluenceStrategy is not None:
     STRATEGY_MAP["LuxICTConfluence"] = LuxICTConfluenceStrategy
+if TrendFibVWAPStrategy is not None:
+    STRATEGY_MAP["TrendFibVWAP"] = TrendFibVWAPStrategy
 
 
 STRATEGY_ALIASES = {
@@ -165,6 +172,11 @@ STRATEGY_ALIASES = {
     "lux_ict": "LuxICTConfluence",
     "luxict": "LuxICTConfluence",
     "ict": "LuxICTConfluence",
+    "trend_fib_vwap": "TrendFibVWAP",
+    "trendfibvwap": "TrendFibVWAP",
+    "trendfib": "TrendFibVWAP",
+    "tfv": "TrendFibVWAP",
+    "confluence": "TrendFibVWAP",
 }
 
 
